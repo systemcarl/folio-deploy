@@ -1,0 +1,56 @@
+source "$(dirname "${BASH_SOURCE[0]}")/utils/environment"
+
+deploy() {
+    usage() {
+        echo "Usage: $0 [options]"
+        echo "Options:"
+        echo "  --namespace             Specify the GitHub namespace for image"
+        echo "  --package               Specify the name of image package."
+        echo "  --help, -h              Show this help message."
+        echo "Environment variables:"
+        echo "  FOLIO_GH_NAMESPACE      GitHub namespace for the Docker image."
+        echo "  FOLIO_GH_PACKAGE        The image name of application package."
+    }
+
+    load_env
+
+    while [[ "$1" != "" ]]; do
+        case "$1" in
+            --help | -h) usage; return 0;;
+            --namespace) FOLIO_GH_NAMESPACE="$2"; shift;;
+            --package) FOLIO_GH_PACKAGE="$2"; shift;;
+            *) echo "Unknown option: $1"; return 1;;
+        esac
+        shift
+    done
+
+    if docker image inspect "$FOLIO_GH_PACKAGE:latest" > /dev/null 2>&1; then
+        docker run -d \
+            --name folio \
+            -p 3000:3000 \
+            "$FOLIO_GH_PACKAGE:latest"
+    else
+        echo "Docker image '$FOLIO_GH_PACKAGE:latest' not found locally."
+        echo "Pulling the latest image from GitHub Container Registry..."
+        if [[ -z "$FOLIO_GH_NAMESPACE" ]]; then
+            echo "Error: GitHub namespace is required to retrieve image."
+            usage
+            return 1
+        fi
+        docker pull "ghcr.io/$FOLIO_GH_NAMESPACE/$FOLIO_GH_PACKAGE:latest"
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to pull Docker image from GitHub Container Registry."
+            echo "Build the image locally with 'containerize' script."
+            return 1
+        fi
+        docker run -d \
+            --name folio \
+            -p 3000:3000 \
+            "ghcr.io/$FOLIO_GH_NAMESPACE/$FOLIO_GH_PACKAGE:latest"
+    fi
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to start the application."
+        return 1
+    fi
+    echo "Application is running on http://localhost:3000"
+}

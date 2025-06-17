@@ -94,6 +94,19 @@ get_mock_call_args_matching() {
 }
 export -f get_mock_call_args_matching
 
+set_mock_state() {
+    local key="$1"
+    local value="$2"
+    echo "__STATE__ $key=$value" >> "$MOCK_FILE"
+}
+export -f set_mock_state
+
+get_mock_state() {
+    local key="$1"
+    grep "^__STATE__ $key=" "$MOCK_FILE" | tail -n 1 | cut -d'=' -f2-
+}
+export -f get_mock_state
+
 assert_mock_called_in_dir() {
     local dir="$1"; dir="/code/$dir"; shift
     local fn_name="$1"; shift
@@ -122,6 +135,10 @@ assert_mock_called_times() {
             expected: $exp
             actual: $act"
     fi
+}
+
+assert_mock_not_called() {
+    assert_mock_called_times 0 "$@"
 }
 
 assert_mock_called_once() {
