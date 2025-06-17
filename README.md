@@ -23,6 +23,21 @@ the full list of options, run the script with the `--help` option.
 containerize --push
 ```
 
+## Deployment
+The `folio` application can be deployed to a locally running *Docker* engine
+using the `deploy` script. This script will pull the latest image from the local
+*Docker* registry or the *GitHub Packages* registry and run it in a container on
+port `3000`.
+```bash
+deploy
+```
+
+To cleanup the running container, run the `destroy` script, which will stop and
+remove the container running the `folio` application.
+```bash
+destroy
+```
+
 ## Testing
 This deployment project includes a test suite that can be run to ensure all
 non-application deployment code is functioning as expected. Script unit tests
