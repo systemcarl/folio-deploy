@@ -13,6 +13,7 @@ setup() {
     mock containerize
     mock deploy
     mock destroy
+    mock validate
 }
 
 teardown() {
@@ -136,5 +137,45 @@ teardown() {
 @test "destroy script exits with destroy function non-zero status" {
     destroy() { return 1; }
     run ./destroy
+    assert_failure
+}
+
+@test "validate script changes working directory to project root" {
+    run ./validate
+    assert_success
+    assert_mock_called_once cd "/code"
+}
+
+@test "validate script changes working directory before sourcing" {
+    run ./validate
+    assert_success
+    assert_mocks_called_in_order \
+        cd "/code" -- \
+        source "./cli/validate"
+}
+
+@test "validate script sources the validate file" {
+    run ./validate
+    assert_success
+    assert_mock_called_once source "./cli/validate"
+}
+
+@test "validate script sources before calling validate function" {
+    run ./validate
+    assert_success
+    assert_mocks_called_in_order \
+        source "./cli/validate" -- \
+        validate
+}
+
+@test "validate script passes arguments to validate function" {
+    run ./validate --arg1 value1 --arg2 value2
+    assert_success
+    assert_mock_called_once validate --arg1 value1 --arg2 value2
+}
+
+@test "validate script exits with validate function non-zero status" {
+    validate() { return 1; }
+    run ./validate
     assert_failure
 }
