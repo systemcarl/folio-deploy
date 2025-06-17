@@ -1,0 +1,18 @@
+destroy() {
+    if [[ -n "$(docker ps -q -f name=folio)" ]]; then
+        echo "Stopping and removing the application container..."
+        docker stop folio > /dev/null
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to stop the application container."
+            return 1
+        fi
+        docker rm folio > /dev/null
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to stop and remove the application container."
+            return 1
+        fi
+        echo "Application container stopped and removed successfully."
+    else
+        echo "No running application container found."
+    fi
+}
