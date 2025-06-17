@@ -1,0 +1,21 @@
+validate() {
+    if [[ ! -d folio ]]; then
+        echo "Error: 'folio' directory does not exist."
+        return 1
+    fi
+    cd folio
+
+    npm install
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to install dependencies."
+        return 1
+    fi
+    echo "Dependencies installed successfully."
+
+    npm run test
+    if [[ $? -ne 0 ]]; then
+        echo "Tests failed."
+        return 1
+    fi
+    echo "All tests passed successfully."
+}

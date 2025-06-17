@@ -9,6 +9,14 @@ To execute the provided scripts, the following dependencies are required:
 - [*Docker*](https://www.docker.com/get-started)
 - [*Node.js*](https://nodejs.org/en/download/) (recommended v22.16 or later)
 
+## Validation
+Before building the application, you can validate the application code using
+the `validate` script. This script will run all tests defined in the `folio`
+application.
+```bash
+validate
+```
+
 ## Build & Containerization
 To build and containerize a deployable application, run the provided
 containerization script. If successful, the script resulting image will be
