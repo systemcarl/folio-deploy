@@ -205,6 +205,10 @@ assert_mock_called_times() {
     fi
 }
 
+assert_mock_not_called() {
+    assert_mock_called_times 0 "$@"
+}
+
 assert_mock_called_once() {
     assert_mock_called_times 1 "$@"
 }

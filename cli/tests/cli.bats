@@ -11,6 +11,8 @@ setup() {
     mock cd
     mock source
     mock containerize
+    mock deploy
+    mock destroy
 }
 
 teardown() {
@@ -54,5 +56,85 @@ teardown() {
 @test "containerize script exits with containerize function non-zero status" {
     containerize() { return 1; }
     run ./containerize
+    assert_failure
+}
+
+@test "deploy script changes working directory to project root" {
+    run ./deploy
+    assert_success
+    assert_mock_called_once cd "/code"
+}
+
+@test "deploy script changes working directory before sourcing" {
+    run ./deploy
+    assert_success
+    assert_mocks_called_in_order \
+        cd "/code" -- \
+        source "./cli/deploy"
+}
+
+@test "deploy script sources the deploy file" {
+    run ./deploy
+    assert_success
+    assert_mock_called_once source "./cli/deploy"
+}
+
+@test "deploy script sources before calling deploy function" {
+    run ./deploy
+    assert_success
+    assert_mocks_called_in_order \
+        source "./cli/deploy" -- \
+        deploy
+}
+
+@test "deploy script passes arguments to deploy function" {
+    run ./deploy --arg1 value1 --arg2 value2
+    assert_success
+    assert_mock_called_once deploy --arg1 value1 --arg2 value2
+}
+
+@test "deploy script exits with deploy function non-zero status" {
+    deploy() { return 1; }
+    run ./deploy
+    assert_failure
+}
+
+@test "destroy script changes working directory to project root" {
+    run ./destroy
+    assert_success
+    assert_mock_called_once cd "/code"
+}
+
+@test "destroy script changes working directory before sourcing" {
+    run ./destroy
+    assert_success
+    assert_mocks_called_in_order \
+        cd "/code" -- \
+        source "./cli/destroy"
+}
+
+@test "destroy script sources the destroy file" {
+    run ./destroy
+    assert_success
+    assert_mock_called_once source "./cli/destroy"
+}
+
+@test "destroy script sources before calling destroy function" {
+    run ./destroy
+    assert_success
+    assert_mocks_called_in_order \
+        source "./cli/destroy" -- \
+        destroy
+}
+
+@test "destroy script passes arguments to destroy function" {
+    run ./destroy --arg1 value1 --arg2 value2
+    assert_success
+    assert_mock_called_once destroy --arg1 value1 --arg2 value2
+}
+
+@test "destroy script exits with destroy function non-zero status" {
+    destroy() { return 1; }
+    run ./destroy
     assert_failure
 }

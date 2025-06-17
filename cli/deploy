@@ -1,0 +1,35 @@
+source "$(dirname "${BASH_SOURCE[0]}")/utils/environment"
+
+deploy() {
+    load_env
+
+    if docker image inspect "$FOLIO_APP_REPO:latest" > /dev/null 2>&1; then
+        docker run -d \
+            --name folio \
+            -p 3000:3000 \
+            "$FOLIO_APP_REPO:latest"
+    else
+        echo "Docker image '$FOLIO_APP_REPO:latest' not found locally."
+        echo "Pulling the latest image from GitHub Container Registry..."
+        if [[ -z "$FOLIO_APP_ACCOUNT" ]]; then
+            echo "Error: GitHub namespace is required to retrieve image."
+            usage
+            return 1
+        fi
+        docker pull "ghcr.io/$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO:latest"
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to pull Docker image from GitHub Container Registry."
+            echo "Build the image locally with 'containerize' script."
+            return 1
+        fi
+        docker run -d \
+            --name folio \
+            -p 3000:3000 \
+            "ghcr.io/$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO:latest"
+    fi
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to start the application."
+        return 1
+    fi
+    echo "Application is running on http://localhost:3000"
+}
