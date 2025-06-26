@@ -10,6 +10,34 @@ To execute the provided scripts, the following dependencies are required:
 - [Node.js](https://nodejs.org/en/download/) (recommended v22.16 or
     later)
 
+### Environment Variables
+All variables can be set in the execution environment, included in a `.env`
+file in the root of the repository, or passed as arguments to the scripts —
+evaluated in that order.
+
+The following environment variables are used during the execution of the
+scripts:
+- `ENVIRONMENT`: The environment being deployed. Expected to be either
+    `production` or `staging`. Environment state is stored separately in the
+    same Google Cloud Storage bucket.
+- `GOOGLE_CREDENTIALS`: The path to the Google Cloud Service credentials
+    JSON file. Used by default during deployment operations.
+- `FOLIO_APP_DOMAIN`: The domain name of the deployed application.
+- `FOLIO_CF_DNS_ZONE`: The Cloudflare DNS of the domain of the application
+    domain. Used to update the DNS records.
+- `FOLIO_SSH_PORT`: The configured SSH port the deployed application server.
+- `FOLIO_PUBLIC_KEY_FILE`: The path to the public key file used by the
+    default user of the deployed application server. Respective private key
+    can be used to access the application server after deployment as user `app`.
+- `FOLIO_GCS_CREDENTIALS`: The path to the Google Cloud Service credentials
+    JSON file. Overrides the global `GOOGLE_CREDENTIALS` variable.
+- `FOLIO_CF_TOKEN`: The Cloudflare API token used to update the DNS records
+    of the application domain. See [*Deployment*](#deployment) for required
+    permission scopes.
+- `FOLIO_DO_TOKEN`: The DigitalOcean API token used to create and manage
+    the application server. See [*Deployment*](#deployment) for required
+    permission scopes.
+
 ## Validation
 Before building the application, you can validate the application code using
 the `validate` script. This script will run all tests defined in the `folio`
@@ -33,18 +61,84 @@ containerize --push
 ```
 
 ## Deployment
-The `folio` application can be deployed to a locally running Docker engine
-using the `deploy` script. This script will pull the latest image from the local
-Docker registry or the GitHub Packages registry and run it in a container on
-port `3000`.
+The `folio` application can be deployed to a remote server or a local Docker
+instance for development and testing using the `deploy` script. To see the full
+list of options, run the script with the `--help` option.
 ```bash
-deploy
+deploy --help
 ```
 
-To cleanup the running container, run the `destroy` script, which will stop and
-remove the container running the `folio` application.
+### Remote Deployment
+By default, the script will attempt to deploy the application to a remote
+server by applying a Terraform plan. Appropriate configuration must be provided;
+see the script usage for details for more information.
+````bash
+deploy
+````
+
+The configured Cloudflare API token must have the scopes, for all applicable
+zones:
+- `DNS:Edit`.
+
+The configured DigitalOcean API token must have the scopes:
+- `droplet:create`,
+- `droplet:read`,
+- `droplet:update`,
+- `droplet:delete`.
+- `reserved_ip:read`,
+- `reserved_ip:create`,
+- `reserved_ip:update`,
+- `reserved_ip:delete`.
+- `ssh_key:read`,
+- `tag:read`,
+- `tag:create`,
+- `tag:delete`
+
+To automatically apply the Terraform plan without interaction, you can
+add the `--approve` option.
+```bash
+deploy --approve
+```
+
+Remote deployment requires that the requested `folio` Docker image version is
+available on GitHub Packages.
+
+### Local Deployment
+If the `--local` option is used, the script will attempt to run the application
+on a local container, exposing port 3000. The latest image will be pull from the
+local Docker registry, or if unavailable, the GitHub Packages registry.
+port `3000`.
+```bash
+deploy --local
+```
+
+## Cleanup
+To tear down the application, either to cleanup local development or destroy the
+remote resources, the `destroy` script can be executed. A usage description
+can be obtained by running the script with the `--help` option.
+```bash
+destroy --help
+```
+
+### Remote Cleanup
+To destroy the remote resources, the script requires the same environment
+configuration as the `deploy` script. The parameters are required to ensure the
+correct resources are identified and destroyed by Terraform.
 ```bash
 destroy
+```
+
+To automatically apply approve the destruction of all resources, add the
+`--approve` option.
+```bash
+destroy --approve
+```
+
+### Local Cleanup
+To clean up the local resources, the script will attempt to stop and remove the
+`folio` container, and remove the local Docker image.
+```bash
+destroy --local
 ```
 
 ## Testing

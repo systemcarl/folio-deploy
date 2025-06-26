@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Destroy the `folio` SvelteKit application running in a Docker container.
+# Destroy the `folio` SvelteKit application running on a cloud server or a
+# local Docker container.
 
 cd "$(realpath "$(dirname "$0")")" || exit 1
 source "./cli/destroy"
