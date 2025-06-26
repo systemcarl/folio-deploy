@@ -1,0 +1,22 @@
+load_env() {
+    local ENV_FILE="$(dirname "${BASH_SOURCE[0]}")/../../.env"
+    while [[ "$1" != "" ]]; do
+        case $1 in
+            --env-file ) ENV_FILE="$2"; shift;;
+            * ) echo "Invalid option: $1"; return 1;;
+        esac
+        shift
+    done
+
+    if [[ "$ENV_FILE" != "" ]]; then
+        source "$ENV_FILE" || return 1
+    fi
+
+    FOLIO_GH_NAMESPACE="${FOLIO_GH_NAMESPACE:-systemcarl}"
+    FOLIO_GH_REPO="${FOLIO_GH_REPO:-folio}"
+    FOLIO_GH_PACKAGE="${FOLIO_GH_PACKAGE:-folio}"
+
+    export FOLIO_GH_NAMESPACE
+    export FOLIO_GH_REPO
+    export FOLIO_GH_PACKAGE
+}

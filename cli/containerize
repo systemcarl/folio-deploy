@@ -1,6 +1,67 @@
+source "$(dirname "${BASH_SOURCE[0]}")/utils/environment"
+source "$(dirname "${BASH_SOURCE[0]}")/utils/package"
+
 containerize() {
+    usage() {
+        echo "Usage: $0 [options]"
+        echo "Options:"
+        echo "  --push              Push image to GitHub Container Registry."
+        echo "  --namespace         Specify the GitHub namespace for image."
+        echo "  --package           Specify the name for image package."
+        echo "  --repo              Specify the application repository name."
+        echo "  --help, -h          Show this help message."
+        echo "Environment Variables:"
+        echo "  FOLIO_GH_NAMESPACE  The GitHub namespace to use for image."
+        echo "  FOLIO_GH_PACKAGE    The package name to use for image."
+        echo "  FOLIO_GH_REPO       The GitHub repository to use for image."
+    }
+
+    load_env
+
+    local push=false
+    while [[ "$1" != "" ]]; do
+        case $1 in
+            --help | -h ) usage; return 0;;
+            --push ) push=true;;
+            --namespace ) FOLIO_GH_NAMESPACE="$2"; shift;;
+            --package ) FOLIO_GH_PACKAGE="$2"; shift;;
+            --repo ) FOLIO_GH_REPO="$2"; shift;;
+            * ) echo "Invalid option: $1"; return 1;;
+        esac
+        shift
+    done
+
+    if [[ -z "$FOLIO_GH_PACKAGE" ]]; then
+        echo "Error: --package argument is required."
+        usage
+        return 1
+    fi
+    if [[ -z "$FOLIO_GH_REPO" ]]; then
+        echo "Error: --repo argument is required."
+        usage
+        return 1
+    fi
+
+    if [[ "$push" = true ]] && [[ -z "$FOLIO_GH_NAMESPACE" ]]; then
+        echo "Error: --namespace argument is required to push images."
+        usage
+        return 1
+    fi
+
+    local version=$(get_version folio)
+    local tag_prefix="$FOLIO_GH_PACKAGE"
+    local source=""
+
+    if [[ "$push" = true ]]; then
+        tag_prefix="ghcr.io/$FOLIO_GH_NAMESPACE/$tag_prefix"
+    fi
+    if [[ -n "$FOLIO_GH_NAMESPACE" ]]; then
+        source="https://github.com/$FOLIO_GH_NAMESPACE/$FOLIO_GH_REPO"
+    fi
+
     echo
     echo "Building SvelteKit application..."
+    echo "Version: $version"
 
     if [[ ! -d folio ]]; then
         echo "Error: 'folio' directory does not exist."
@@ -24,10 +85,25 @@ containerize() {
 
     echo
     echo "Building Docker image..."
-    docker build -t folio:latest .
+    docker build -t "$tag_prefix:latest" \
+        -t "$tag_prefix:$version" \
+        --build-arg "SOURCE=$source" \
+        --build-arg "VERSION=$version" \
+        -f Dockerfile .
     if [[ $? -ne 0 ]]; then
         echo "Failed to build Docker image."
         return 1
     fi
     echo "Docker image built successfully."
+
+    if [[ "$push" = true ]]; then
+        echo "Pushing Docker image to GitHub Container Registry..."
+        docker push "$tag_prefix:latest" \
+            && docker push "$tag_prefix:$version"
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to push Docker image."
+            return 1
+        fi
+        echo "Docker image pushed successfully."
+    fi
 }
