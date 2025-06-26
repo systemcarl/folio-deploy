@@ -1,4 +1,46 @@
+source "$(dirname "${BASH_SOURCE[0]}")/utils/deployment"
+
 destroy() {
+    local loc=false
+    local approve=false
+    parse_environment_args "$@"
+    if [[ $? -ne 0 ]]; then return 1; fi
+    loc=$(parse_local_arg "$@")
+    if [[ $? -ne 0 ]]; then return 1; fi
+    approve=$(parse_approve_arg "$@")
+    if [[ $? -ne 0 ]]; then return 1; fi
+
+    if [[ "$loc" = false ]]; then
+        echo "Destroying production environment..."
+        terraform plan -destroy -out=tfplan \
+            -var "namespace=$FOLIO_GH_NAMESPACE" \
+            -var "domain=$FOLIO_APP_DOMAIN" \
+            -var "dns_zone=$FOLIO_CF_DNS_ZONE" \
+            -var "ssh_port=$FOLIO_SSH_PORT" \
+            -var "ssh_public_key_file=$FOLIO_PUBLIC_KEY_FILE" \
+            -var "cf_token=$FOLIO_CF_TOKEN" \
+            -var "do_token=$FOLIO_DO_TOKEN "
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to create Terraform destroy plan."
+            return 1
+        fi
+        if [[ "$approve" != true ]]; then
+            echo "Destroy $FOLIO_APP_DOMAIN deployment? (y/n)"
+            read -r response
+            if [[ ! "$response" =~ ^[Yy]$ ]]; then
+                echo "Deployment aborted."
+                return 0
+            fi
+        fi
+        terraform apply tfplan
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to destroy deployment."
+            return 1
+        fi
+        echo "Deployment destroyed successfully."
+        return 0
+    fi
+
     if [[ -n "$(docker ps -q -f name=folio)" ]]; then
         echo "Stopping and removing the application container..."
         docker stop folio > /dev/null

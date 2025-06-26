@@ -1,28 +1,51 @@
-source "$(dirname "${BASH_SOURCE[0]}")/utils/environment"
+source "$(dirname "${BASH_SOURCE[0]}")/utils/deployment"
 
 deploy() {
-    usage() {
-        echo "Usage: $0 [options]"
-        echo "Options:"
-        echo "  --namespace             Specify the GitHub namespace for image"
-        echo "  --package               Specify the name of image package."
-        echo "  --help, -h              Show this help message."
-        echo "Environment variables:"
-        echo "  FOLIO_GH_NAMESPACE      GitHub namespace for the Docker image."
-        echo "  FOLIO_GH_PACKAGE        The image name of application package."
-    }
+    local loc=false
+    local approve=false
+    parse_environment_args "$@"
+    if [[ $? -ne 0 ]]; then return 1; fi
+    loc=$(parse_local_arg "$@")
+    if [[ $? -ne 0 ]]; then return 1; fi
+    approve=$(parse_approve_arg "$@")
+    if [[ $? -ne 0 ]]; then return 1; fi
 
-    load_env
-
-    while [[ "$1" != "" ]]; do
-        case "$1" in
-            --help | -h) usage; return 0;;
-            --namespace) FOLIO_GH_NAMESPACE="$2"; shift;;
-            --package) FOLIO_GH_PACKAGE="$2"; shift;;
-            *) echo "Unknown option: $1"; return 1;;
-        esac
-        shift
-    done
+    if [[ "$loc" = false ]]; then
+        echo "Initializing Terraform..."
+        terraform init
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to initialize Terraform."
+            return 1
+        fi
+        echo "Deploying to production environment..."
+        terraform plan -out=tfplan \
+            -var "namespace=$FOLIO_GH_NAMESPACE" \
+            -var "domain=$FOLIO_APP_DOMAIN" \
+            -var "dns_zone=$FOLIO_CF_DNS_ZONE" \
+            -var "ssh_port=$FOLIO_SSH_PORT" \
+            -var "ssh_public_key_file=$FOLIO_PUBLIC_KEY_FILE" \
+            -var "cf_token=$FOLIO_CF_TOKEN" \
+            -var "do_token=$FOLIO_DO_TOKEN "
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to create Terraform plan."
+            return 1
+        fi
+        if [[ "$approve" != true ]]; then
+            echo "Deploy $ENVIRONMENT configuration to $FOLIO_APP_DOMAIN? (y/n)"
+            read -r response
+            if [[ ! "$response" =~ ^[Yy]$ ]]; then
+                echo "Deployment aborted."
+                return 0
+            fi
+        fi
+        terraform apply tfplan
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to apply Terraform plan."
+            return 1
+        fi
+        echo "Deployment of $ENVIRONMENT completed successfully."
+        return 0
+    fi
 
     if docker image inspect "$FOLIO_GH_PACKAGE:latest" > /dev/null 2>&1; then
         docker run -d \
