@@ -1,0 +1,127 @@
+source "$(dirname "${BASH_SOURCE[0]}")/environment"
+
+deployment_usage() {
+    echo "Usage: $0 [options]"
+    echo "Options:"
+    echo "  --local         Target the local environment"
+    echo "  --approve       Automatically approve changes"
+    echo "  --domain        Specify the domain for the application"
+    echo "  --dns-zone      Specify the Cloudflare zone for DNS records"
+    echo "  --ssh-port      Specify the SSH port for the server"
+    echo "  --email         Specify the email for ACME certificate registration"
+    echo "  --ssh-key-id    Specify the SSH key ID for initial configuration"
+    echo "  --public-key    Specify the SSH public key file for the server"
+    echo "  --gcs-creds     Specify the Google Cloud Service credentials file"
+    echo "  --cf-token      Specify the Cloudflare API token"
+    echo "  --do-token      Specify the DigitalOcean API token"
+    echo "  --help, -h      Show this help message"
+    echo "Environment variables:"
+    echo "  FOLIO_APP_DOMAIN        Domain for hosting the application."
+    echo "  FOLIO_CF_DNS_ZONE       Cloudflare DNS zone ID for the domain."
+    echo "  FOLIO_SSH_PORT          SSH port for the server (default: 22)."
+    echo "  FOLIO_ACME_EMAIL        Email for ACME certificate registration."
+    echo "  FOLIO_SSH_KEY_ID        SSH key ID for initial configuration."
+    echo "  FOLIO_PUBLIC_KEY_FILE   Path to the SSH public key file."
+    echo "  FOLIO_GCS_CREDENTIALS   Path to Google Cloud Service credentials."
+    echo "  FOLIO_CF_TOKEN          Cloudflare API token."
+    echo "  FOLIO_DO_TOKEN          DigitalOcean API token."
+}
+
+parse_environment_args() {
+    load_env
+
+    local loc=false
+    while [[ "$1" != "" ]]; do
+        case "$1" in
+            --help | -h ) deployment_usage; return 0;;
+            --local ) loc=true;;
+            --approve ) ;;
+            --domain ) FOLIO_APP_DOMAIN="$2"; shift;;
+            --dns-zone ) FOLIO_CF_DNS_ZONE="$2"; shift;;
+            --ssh-port ) FOLIO_SSH_PORT="$2"; shift;;
+            --email ) FOLIO_ACME_EMAIL="$2"; shift;;
+            --ssh-key-id ) FOLIO_SSH_KEY_ID="$2"; shift;;
+            --public-key ) FOLIO_PUBLIC_KEY_FILE="$2"; shift;;
+            --gcs-creds ) GOOGLE_CREDENTIALS="$2"; shift;;
+            --cf-token ) FOLIO_CF_TOKEN="$2"; shift;;
+            --do-token ) FOLIO_DO_TOKEN="$2"; shift;;
+            * ) echo "Unknown option: $1"; deployment_usage; return 1;;
+        esac
+        shift
+    done
+
+    if [[ "$loc" == "false" ]]; then
+        if [[ -z "$FOLIO_APP_DOMAIN" ]]; then
+            echo "Error: Domain required for non-local deployment."
+            deployment_usage
+            return 1
+        fi
+        if [[ -z "$FOLIO_CF_DNS_ZONE" ]]; then
+            echo "Error: Cloudflare DNS zone required for non-local deployment."
+            deployment_usage
+            return 1
+        fi
+        if [[ -z "$FOLIO_SSH_PORT" ]]; then
+            echo "Error: SSH port required for non-local deployment."
+            deployment_usage
+            return 1
+        fi
+        if [[ -z "$FOLIO_SSH_KEY_ID" ]]; then
+            echo "Error: SSH key ID required for non-local deployment."
+            deployment_usage
+            return 1
+        fi
+        if [[ -z "$FOLIO_PUBLIC_KEY_FILE" ]]; then
+            echo "Error: Public key file required for non-local deployment."
+            deployment_usage
+            return 1
+        fi
+        if [[ -z "$GOOGLE_CREDENTIALS" ]]; then
+            echo "Error: GCS credentials required for non-local deployment."
+            deployment_usage
+            return 1
+        fi
+        if [[ -z "$FOLIO_CF_TOKEN" ]]; then
+            echo "Error: Cloudflare token required for non-local deployment."
+            deployment_usage
+            return 1
+        fi
+        if [[ -z "$FOLIO_DO_TOKEN" ]]; then
+            echo "Error: DigitalOcean token required for non-local deployment."
+            deployment_usage
+            return 1
+        fi
+
+        if ! command -v terraform &> /dev/null; then
+            echo "Error: Terraform is not installed."
+            return 1
+        fi
+    fi
+
+    export FOLIO_APP_DOMAIN
+    export FOLIO_CF_DNS_ZONE
+    export FOLIO_SSH_PORT
+    export FOLIO_PUBLIC_KEY_FILE
+    export FOLIO_CF_TOKEN
+    export FOLIO_DO_TOKEN
+}
+
+parse_local_arg() {
+    while [[ "$1" != "" ]]; do
+        case "$1" in
+            --local ) echo true; return 0;;
+        esac
+        shift
+    done
+    echo false
+}
+
+parse_approve_arg() {
+    while [[ "$1" != "" ]]; do
+        case "$1" in
+            --approve ) echo true; return 0;;
+        esac
+        shift
+    done
+    echo false
+}

@@ -4,15 +4,22 @@ test() {
         echo "  $0 [options]"
         echo "  $0 [options] <test-path>"
         echo "Options:"
+        echo "  --cli               Run command tests"
+        echo "  --infra             Run infrastructure tests"
+        echo "  --terraform         Run Terraform tests"
         echo "  --filter, -e        Specify regex to filter tests by name"
         echo "  --help, -h          Show this help message"
     }
 
     local test_path=""
     local test_filter=""
+    local flags=""
     while [[ "$1" != "" ]]; do
         case "$1" in
             --help | -h ) usage; return 0;;
+            --cli ) flags+="c";;
+            --infra ) flags+="i";;
+            --terraform ) flags+="t";;
             --filter | -e ) test_filter="$2"; shift;;
             * ) if [[ -z "$test_path" ]]; then test_path="$1"
                 else echo "Too many arguments provided: $1"; usage; return 1
@@ -20,6 +27,13 @@ test() {
         esac
         shift
     done
+
+    if [[ "$flags" == *t* ]]; then
+        if [[ -n "$test_path" ]] || [[ -n "$test_filter" ]]; then
+            echo "Error: Terraform tests cannot be filtered by path or name."
+            return 1
+        fi
+    fi
 
     local os="$(uname -s)"
     local root="$(pwd)"
@@ -38,19 +52,78 @@ test() {
         filter_args=("-f" "$test_filter")
     fi
 
-    echo
-    echo "Running command BATS tests..."
-    docker run --rm -it \
-        --name folio-tests-bats \
-        -v "$root:/code" \
-        bats/bats:latest \
-        "${filter_args[@]}" \
-        "cli/tests/$test_path"
+    failures=$((0))
+    if [[ -z "$flags" ]] || [[ "$flags" == *c* ]]; then
+        echo
+        local path="cli/tests/$test_path"
+        if [[ -d "$path" ]] || [[ -f "$path" ]]; then
+            echo "Running command line interface BATS tests..."
+            docker run --rm -it \
+                --name folio-tests-bats \
+                -v "$root:/code" \
+                bats/bats:latest \
+                "${filter_args[@]}" \
+                "$path"
+            if [[ $? -eq 0 ]];  then
+                echo "Command line interface BATS tests passed successfully."
+            else
+                echo "Command line interface BATS tests failed."
+                failures=$((failures + 1))
+            fi
+        else
+            echo "No command line interface tests found at path: $path"
+        fi
+    fi
 
-    if [[ $? -eq 0 ]];  then
-        echo "BATS tests passed successfully."
-    else
-        echo "BATS tests failed."
+    if [[ -z "$flags" ]] || [[ "$flags" == *i* ]]; then
+        echo
+        local path="infra/tests/$test_path"
+        if [[ -d "$path" ]] || [[ -f "$path" ]]; then
+            echo "Running infrastructure BATS tests..."
+            docker run --rm -it \
+                --name folio-tests-bats \
+                -v "$root:/code" \
+                bats/bats:latest \
+                "${filter_args[@]}" \
+                "$path"
+            if [[ $? -eq 0 ]];  then
+                echo "Infrastructure BATS tests passed successfully."
+            else
+                echo "Infrastructure BATS tests failed."
+                failures=$((failures + 1))
+            fi
+        else
+            echo "No infrastructure tests found at path: $path"
+        fi
+    fi
+
+    if [[ -z "$flags" ]] || [[ "$flags" == *i* ]] || [[ "$flags" == *t* ]]; then
+        if [[ -z "$test_filter" ]] && [[ -z "$test_path" ]]; then
+            echo
+            echo "Running infrastructure Terraform tests..."
+            export TF_DATA_DIR="../.tmp/.terraform"
+            terraform -chdir=infra init -backend=false
+            if [[ $? -ne 0 ]]; then
+                echo "Failed to initialize Terraform."
+                failures=$((failures + 1))
+            fi
+            terraform -chdir=infra test
+            if [[ $? -eq 0 ]]; then
+                echo
+                echo "Terraform tests passed successfully."
+            else
+                echo
+                echo "Terraform tests failed."
+                failures=$((failures + 1))
+            fi
+        fi
+    fi
+
+    echo
+    if [[ $failures -gt 0 ]]; then
+        echo -e "\033[0;31m$failures test suite(s) failed.\033[0m"
         return 1
+    else
+        echo "All tests passed successfully."
     fi
 }

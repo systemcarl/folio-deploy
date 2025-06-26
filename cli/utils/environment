@@ -1,6 +1,19 @@
 source "$(dirname "${BASH_SOURCE[0]}")/repo"
 
 load_env() {
+    local ENV_FILE="$(dirname "${BASH_SOURCE[0]}")/../../.env"
+    while [[ "$1" != "" ]]; do
+        case $1 in
+            --env-file ) ENV_FILE="$2"; shift;;
+            * ) echo "Invalid option: $1"; return 1;;
+        esac
+        shift
+    done
+
+    if [[ "$ENV_FILE" != "" ]] && [[ -f "$ENV_FILE" ]]; then
+        source "$ENV_FILE" || return 1
+    fi
+
     cd folio || return 1
     local app_account=$(get_github_account)
     local app_repo=$(get_github_repo)
@@ -11,6 +24,12 @@ load_env() {
         return 1
     fi
 
+    ENVIRONMENT="${ENVIRONMENT:-production}"
     FOLIO_APP_ACCOUNT="${FOLIO_APP_ACCOUNT:-$app_account}"
     FOLIO_APP_REPO="${FOLIO_APP_REPO:-$app_repo}"
+
+    FOLIO_SSH_PORT="${FOLIO_SSH_PORT:-22}"
+
+    GOOGLE_CREDENTIALS="${FOLIO_GCS_CREDENTIALS:-$GOOGLE_CREDENTIALS}"
+    export GOOGLE_CREDENTIALS
 }
