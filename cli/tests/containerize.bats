@@ -11,6 +11,16 @@ setup() {
 
     mock npm
     mock docker
+
+    get_version() {
+        log_mock_call get_version "$@"
+        echo "1.2.3"
+    }
+
+    mock load_env
+
+    FOLIO_APP_ACCOUNT="app-account"
+    FOLIO_APP_REPO="app-repo"
 }
 
 teardown() {
@@ -20,6 +30,18 @@ teardown() {
 @test "containerizes application" {
     run containerize
     assert_success
+}
+
+@test "loads environment" {
+    run containerize
+    assert_success
+    assert_mock_called_once load_env
+}
+
+@test "get application version" {
+    run containerize
+    assert_success
+    assert_mock_called_once get_version folio
 }
 
 @test "installs npm dependencies" {
@@ -44,8 +66,49 @@ teardown() {
         npm run build
 }
 
-@test "builds local container image" {
+@test "builds container image" {
     run containerize
     assert_success
-    assert_mock_called_once docker build -t folio:latest
+    assert_mock_called_once docker build \
+        -f "Dockerfile" "."
+}
+
+@test "tags local container image" {
+    run containerize
+    assert_success
+    assert_mock_called_once docker build \
+        -t "app-repo:latest" \
+        -t "app-repo:1.2.3"
+}
+
+@test "tags image with Github Package Registry namespace" {
+    run containerize --push
+    assert_success
+    assert_mock_called_once docker build \
+        -t "ghcr.io/app-account/app-repo:latest" \
+        -t "ghcr.io/app-account/app-repo:1.2.3"
+}
+
+@test "labels image with version" {
+    run containerize --push
+    assert_success
+    assert_mock_called_once docker build \
+        --build-arg "VERSION=1.2.3"
+}
+
+@test "labels image with source" {
+    run containerize --push
+    assert_success
+    assert_mock_called_once docker build \
+        --build-arg "SOURCE=https://github.com/app-account/app-repo"
+}
+
+@test "pushes image to GitHub Package Registry" {
+    run containerize --push
+    assert_success
+    assert_mock_called_times 2 docker push
+    assert_mock_called_once docker push \
+        "ghcr.io/app-account/app-repo:1.2.3"
+    assert_mock_called_once docker push \
+        "ghcr.io/app-account/app-repo:latest"
 }

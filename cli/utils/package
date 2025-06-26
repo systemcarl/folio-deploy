@@ -1,0 +1,5 @@
+get_version() {
+    grep '"version"' "$1/package.json" \
+        | head -1 \
+        | sed -E 's/.*"version": *"([^"]+)".*/\1/'
+}

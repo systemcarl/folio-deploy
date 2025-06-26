@@ -1,6 +1,37 @@
+source "$(dirname "${BASH_SOURCE[0]}")/utils/environment"
+source "$(dirname "${BASH_SOURCE[0]}")/utils/package"
+
 containerize() {
+    usage() {
+        echo "Usage: $0 [options]"
+        echo "Options:"
+        echo "  --push              Push image to GitHub Container Registry."
+        echo "  --help, -h          Show this help message."
+    }
+
+    load_env
+
+    local push=false
+    while [[ "$1" != "" ]]; do
+        case $1 in
+            --help | -h ) usage; return 0;;
+            --push ) push=true;;
+            * ) echo "Invalid option: $1"; return 1;;
+        esac
+        shift
+    done
+
+    local version=$(get_version folio)
+    local tag_prefix="$FOLIO_APP_REPO"
+    local source="https://github.com/$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO"
+
+    if [[ "$push" = "true" ]]; then
+        tag_prefix="ghcr.io/$FOLIO_APP_ACCOUNT/$tag_prefix"
+    fi
+
     echo
     echo "Building SvelteKit application..."
+    echo "Version: $version"
 
     if [[ ! -d folio ]]; then
         echo "Error: 'folio' directory does not exist."
@@ -24,10 +55,25 @@ containerize() {
 
     echo
     echo "Building Docker image..."
-    docker build -t folio:latest .
+    docker build -t "$tag_prefix:latest" \
+        -t "$tag_prefix:$version" \
+        --build-arg "SOURCE=$source" \
+        --build-arg "VERSION=$version" \
+        -f Dockerfile .
     if [[ $? -ne 0 ]]; then
         echo "Failed to build Docker image."
         return 1
     fi
     echo "Docker image built successfully."
+
+    if [[ "$push" = "true" ]]; then
+        echo "Pushing Docker image to GitHub Container Registry..."
+        docker push "$tag_prefix:latest" \
+            && docker push "$tag_prefix:$version"
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to push Docker image."
+            return 1
+        fi
+        echo "Docker image pushed successfully."
+    fi
 }

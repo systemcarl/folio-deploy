@@ -17,6 +17,12 @@ tagged as `folio:latest` and pushed to the local *Docker* registry.
 containerize
 ```
 
+To push to the *GitHub Packages* registry, option `--push` can be used. To see
+the full list of options, run the script with the `--help` option.
+```bash
+containerize --push
+```
+
 ## Testing
 This deployment project includes a test suite that can be run to ensure all
 non-application deployment code is functioning as expected. Script unit tests

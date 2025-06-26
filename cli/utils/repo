@@ -1,0 +1,24 @@
+get_origin_url() {
+    local origin_url=$(git remote get-url origin 2>/dev/null || echo "")
+    origin_url=$(echo "$origin_url" | tr -d '\r')
+    if [[ -z "$origin_url" ]]; then return 1; fi
+    if [[ ! "$origin_url" =~ ^https?://github\.com/ ]]; then return 1; fi
+    echo "$origin_url"
+}
+
+get_github_account() {
+    local url=$(get_origin_url)
+    local account=$(echo "$url" \
+        | sed -E 's|^https?://github\.com/([^/]+)/.*$|\1|' | tr -d '\n')
+    if [[ "$account" == "$url" ]]; then return 1; fi
+    echo "$account"
+}
+
+get_github_repo() {
+    local url=$(get_origin_url)
+    local repo=$(echo "$url" \
+        | sed -E 's|^https?://github\.com/[^/]+/([^/]+)(\.git)?$|\1|' \
+        | tr -d '\n')
+    if [[ "$repo" == "$url" ]]; then return 1; fi
+    echo "${repo%.git}"
+}
