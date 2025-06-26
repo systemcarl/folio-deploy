@@ -51,6 +51,21 @@ teardown() {
     assert_mock_called_in_dir folio npm install
 }
 
+@test "installs npm dependencies before testing" {
+    run containerize
+    assert_success
+    assert_mocks_called_in_order \
+        npm install -- \
+        npm run test
+}
+
+@test "runs tests" {
+    run containerize
+    assert_success
+    assert_mock_called_once npm run test
+    assert_mock_called_in_dir folio npm run test
+}
+
 @test "builds SvelteKit application" {
     run containerize
     assert_success
