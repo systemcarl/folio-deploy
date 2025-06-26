@@ -1,0 +1,16 @@
+source "$(dirname "${BASH_SOURCE[0]}")/repo"
+
+load_env() {
+    cd folio || return 1
+    local app_account=$(get_github_account)
+    local app_repo=$(get_github_repo)
+    cd .. || return 1
+
+    if [[ -z "$app_account" ]] || [[ -z "$app_repo" ]]; then
+        echo "Error: Unable to determine application GitHub namespace."
+        return 1
+    fi
+
+    FOLIO_APP_ACCOUNT="${FOLIO_APP_ACCOUNT:-$app_account}"
+    FOLIO_APP_REPO="${FOLIO_APP_REPO:-$app_repo}"
+}
