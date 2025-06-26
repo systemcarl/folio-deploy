@@ -1,7 +1,61 @@
-source "$(dirname "${BASH_SOURCE[0]}")/utils/environment"
+source "$(dirname "${BASH_SOURCE[0]}")/utils/deployment"
 
 deploy() {
-    load_env
+    local loc
+    local approve
+    parse_environment_args "$@" || return 1
+    loc=$(parse_local_arg "$@") || return 1
+    approve=$(parse_approve_arg "$@") || return 1
+
+    if [[ "$loc" = "false" ]]; then
+        echo "Initializing Terraform..."
+
+        terraform -chdir=infra init -reconfigure \
+            -backend-config="prefix=$ENVIRONMENT"
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to initialize Terraform."
+            return 1
+        fi
+
+        echo "Deploying to production environment..."
+        terraform -chdir=infra plan -out=tfplan \
+            -var "environment=$ENVIRONMENT" \
+            -var "namespace=$FOLIO_APP_ACCOUNT" \
+            -var "domain=$FOLIO_APP_DOMAIN" \
+            -var "dns_zone=$FOLIO_CF_DNS_ZONE" \
+            -var "ssh_port=$FOLIO_SSH_PORT" \
+            -var "acme_email=$FOLIO_ACME_EMAIL" \
+            -var "ssh_key_id=$FOLIO_SSH_KEY_ID" \
+            -var "ssh_public_key_file=$FOLIO_PUBLIC_KEY_FILE" \
+            -var "cf_token=$FOLIO_CF_TOKEN" \
+            -var "do_token=$FOLIO_DO_TOKEN"
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to create Terraform plan."
+            return 1
+        fi
+
+        if [[ "$approve" != "true" ]]; then
+            echo "Deploy $ENVIRONMENT configuration to $FOLIO_APP_DOMAIN? (y/n)"
+            read -r response
+            if [[ ! "$response" =~ ^[Yy]$ ]]; then
+                echo
+                echo "Deployment aborted."
+                return 0
+            fi
+        fi
+
+        echo "Applying Terraform plan..."
+        terraform -chdir=infra apply tfplan
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to apply Terraform plan."
+            return 1
+        fi
+
+        echo
+        echo "Application is running at https://$FOLIO_APP_DOMAIN"
+        echo "Deployment of $ENVIRONMENT completed successfully."
+        return 0
+    fi
 
     if docker image inspect "$FOLIO_APP_REPO:latest" > /dev/null 2>&1; then
         docker run -d \

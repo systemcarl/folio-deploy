@@ -1,4 +1,61 @@
+source "$(dirname "${BASH_SOURCE[0]}")/utils/deployment"
+
 destroy() {
+    local loc
+    local approve
+    parse_environment_args "$@" || return 1
+    loc=$(parse_local_arg "$@") || return 1
+    approve=$(parse_approve_arg "$@") || return 1
+
+    if [[ "$loc" = "false" ]]; then
+        echo "Initializing Terraform..."
+
+        terraform -chdir=infra init -reconfigure \
+            -backend-config="prefix=$ENVIRONMENT"
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to initialize Terraform."
+            return 1
+        fi
+
+        echo
+        echo "Destroying production environment..."
+        terraform -chdir=infra plan -destroy -out=tfplan \
+            -var "environment=$ENVIRONMENT" \
+            -var "namespace=$FOLIO_APP_ACCOUNT" \
+            -var "domain=$FOLIO_APP_DOMAIN" \
+            -var "dns_zone=$FOLIO_CF_DNS_ZONE" \
+            -var "ssh_port=$FOLIO_SSH_PORT" \
+            -var "acme_email=$FOLIO_ACME_EMAIL" \
+            -var "ssh_key_id=$FOLIO_SSH_KEY_ID" \
+            -var "ssh_public_key_file=$FOLIO_PUBLIC_KEY_FILE" \
+            -var "cf_token=$FOLIO_CF_TOKEN" \
+            -var "do_token=$FOLIO_DO_TOKEN "
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to create Terraform destroy plan."
+            return 1
+        fi
+
+        if [[ "$approve" != "true" ]]; then
+            echo "Destroy $FOLIO_APP_DOMAIN deployment? (y/n)"
+            read -r response
+            echo
+            if [[ ! "$response" =~ ^[Yy]$ ]]; then
+                echo "Deployment aborted."
+                return 0
+            fi
+        fi
+
+        echo "Applying Terraform destroy plan..."
+        terraform -chdir=infra apply tfplan
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to destroy deployment."
+            return 1
+        fi
+
+        echo "Deployment destroyed successfully."
+        return 0
+    fi
+
     if [[ -n "$(docker ps -q -f name=folio)" ]]; then
         echo "Stopping and removing the application container..."
         docker stop folio > /dev/null
