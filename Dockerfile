@@ -3,6 +3,12 @@
 FROM node:24-alpine
 
 ARG PORT=3000
+ARG SOURCE=""
+ARG VERSION
+
+LABEL org.opencontainers.image.source=${SOURCE}
+LABEL org.opencontainers.image.version=${VERSION}
+LABEL org.opencontainers.image.license=MIT
 
 WORKDIR /app
 USER node
