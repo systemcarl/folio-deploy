@@ -27,6 +27,7 @@ setup() {
 }
 
 setup_remote_env() {
+    export ENVIRONMENT="production"
     export FOLIO_GH_NAMESPACE="default-namespace"
     export FOLIO_APP_DOMAIN="example.com"
     export FOLIO_CF_DNS_ZONE="abc123"
@@ -196,6 +197,7 @@ teardown() {
     assert_success
     assert_mock_called_once terraform plan -destroy \
         -out=tfplan \
+        -var "environment=production" \
         -var "namespace=default-namespace" \
         -var "domain=example.com" \
         -var "dns_zone=abc123" \
@@ -217,8 +219,26 @@ teardown() {
     assert_success
     assert_mock_called_once terraform plan -destroy \
         -out=tfplan \
+        -var "environment=production" \
         -var "namespace=test-namespace" \
         -var "domain=example.test" \
+        -var "dns_zone=abc123" \
+        -var "ssh_port=2222" \
+        -var "ssh_public_key_file=/path/to/public_key.pub" \
+        -var "cf_token=cf_token" \
+        -var "do_token=do_token"
+}
+
+@test "creates staging Terraform destroy plan" {
+    export ENVIRONMENT="staging"
+    setup_remote_env
+    run destroy <<< "y" --staging
+    assert_success
+    assert_mock_called_once terraform plan -destroy \
+        -out=tfplan \
+        -var "environment=staging" \
+        -var "namespace=default-namespace" \
+        -var "domain=example.com" \
         -var "dns_zone=abc123" \
         -var "ssh_port=2222" \
         -var "ssh_public_key_file=/path/to/public_key.pub" \

@@ -289,6 +289,7 @@ teardown() {
     assert_success
     assert_mock_called_once terraform plan \
         -out=tfplan \
+        -var "environment=production" \
         -var "namespace=default-namespace" \
         -var "domain=example.com" \
         -var "dns_zone=abc123" \
@@ -310,10 +311,27 @@ teardown() {
     assert_success
     assert_mock_called_once terraform plan \
         -out=tfplan \
+        -var "environment=production" \
         -var "namespace=test-namespace" \
         -var "domain=example.com" \
         -var "dns_zone=abc123" \
         -var "ssh_port=2222" \
+        -var "ssh_public_key_file=/path/to/public_key.pub" \
+        -var "cf_token=cf_token" \
+        -var "do_token=do_token"
+}
+
+@test "creates staging Terraform plan" {
+    setup_remote_env
+    run deploy <<< "y" --staging
+    assert_success
+    assert_mock_called_once terraform plan \
+        -out=tfplan \
+        -var "environment=staging" \
+        -var "namespace=default-namespace" \
+        -var "domain=example.com" \
+        -var "dns_zone=abc123" \
+        -var "ssh_port=22" \
         -var "ssh_public_key_file=/path/to/public_key.pub" \
         -var "cf_token=cf_token" \
         -var "do_token=do_token"
