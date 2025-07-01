@@ -1,0 +1,31 @@
+test() {
+    local os="$(uname -s)"
+    local root="$(pwd)"
+    if [[ "$os" == "MINGW"* || "$os" == "MSYS"* || "$os" == "CYGWIN"* ]]; then
+        root="$(cygpath -w "$root")"
+    fi
+
+    echo "Running BATS tests in Docker container..."
+    docker run -it \
+        --name folio-tests-bats \
+        -v "$root:/code" \
+        bats/bats:latest \
+        cli/tests/
+    if [[ $? -eq 0 ]];  then
+        echo "BATS tests passed successfully."
+    else
+        echo "BATS tests failed."
+    fi
+
+    echo
+    docker stop folio-tests-bats >/dev/null 2>&1
+    if [[ $? -ne 0 ]];  then
+        echo "Failed to stop the Docker container."
+        return 1
+    fi
+    docker rm folio-tests-bats >/dev/null 2>&1
+    if [[ $? -ne 0 ]];  then
+        echo "Failed to remove the Docker container."
+        return 1
+    fi
+}
