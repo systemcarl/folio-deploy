@@ -7,6 +7,15 @@ output is containerized into a *Docker* image.
 ## Prerequisites
 To execute the provided scripts, the following dependencies are required:
 - [*Docker*](https://www.docker.com/get-started)
+- [*Node.js*](https://nodejs.org/en/download/) (recommended v22.16 or later)
+
+## Build & Containerization
+To build and containerize a deployable application, run the provided
+containerization script. If successful, the script resulting image will be
+tagged as `folio:latest` and pushed to the local *Docker* registry.
+```bash
+containerize
+```
 
 ## Testing
 This deployment project includes a test suite that can be run to ensure all
