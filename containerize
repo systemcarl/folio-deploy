@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Containerize the `folio` SvelteKit application. Before building the Docker
+# image, ensure that dependencies and application build is up-to-date.
+
+cd "$(realpath "$(dirname "$0")")" || exit 1
+source "./cli/containerize"
+containerize "$@"
