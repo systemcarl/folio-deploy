@@ -1,0 +1,257 @@
+#!/usr/bin/env bats
+
+format_arg() {
+    local arg=${1//\\/\\\\}
+    if [[ "$arg" =~ $'\n' ]]; then arg="${arg//$'\n'/ }"; fi
+    arg=$(echo "$arg" \
+        | command sed 's/^[[:space:]]+//;s/[[:space:]]+$//;s/[[:space:]]/ /g')
+    if [[ "$arg" =~ " " ]]; then echo $(printf '"%s" ' "$arg")
+    else echo $(printf '%s ' "$arg"); fi
+}
+export -f format_arg
+
+format_args() {
+    local args=""
+    for arg in "$@"; do args+="$(format_arg "$arg") "; done
+    echo "${args%" "}"
+}
+export -f format_args
+
+sanitize() {
+    local s=$(printf '%s ' "$@" | command sed -E 's/ +$//')
+    if [[ "$s" =~ '+' ]]; then s="${s//+/\\+}"; fi
+    if [[ "$s" =~ '[' ]]; then s="${s//\[/\\[}"; fi
+    if [[ "$s" =~ ']' ]]; then s="${s//\]/\\]}"; fi
+    echo "$s"
+}
+export -f sanitize
+
+normalize() {
+    local escape=false
+    if [[ "$1" == "--escape" ]]; then escape=true; shift; fi
+
+    local n="$1"
+    if [[ "$n" =~ ^\".*\"$ ]] || [[ "$n" =~ ^\'.*\'$ ]]; then n="${n:1:-1}"; fi
+    if [[ "$n" =~ $'\n' ]]; then n="${n//$'\n'/ }"; fi
+    n=$(echo "$n" \
+        | command sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/[[:space:]]\+/ /g')
+    if [[ "$escape" == "true" ]]; then
+        if [[ "$n" =~ \\ ]]; then n="${n//\\/\\\\}"; fi
+        if [[ "$n" =~ \" ]]; then n="${n//\\\"/\"}"; n="${n//\"/\\\"}"; fi
+        if [[ "$n" =~ + ]]; then n="${n//+/\\+}"; fi
+    fi
+    if [[ "$n" =~ " " ]]; then printf '"%s"' "$n"
+    elif [[ -n "$n" ]]; then printf '%s' "$n"
+    elif [[ -n "$1" ]]; then printf '%s' "$1"; fi
+}
+export -f normalize
+
+denormalize() {
+    local d=$(printf "$1")
+    if [[ "$d" =~ ^\".*\"$ ]] || [[ "$d" =~ ^\'.*\'$ ]]; then d="${d:1:-1}"; fi
+    echo "$d"
+}
+
+setup_mocks() {
+    export MOCK_FILE="$(mktemp)"
+    : > "$MOCK_FILE"
+}
+export -f setup_mocks
+
+teardown_mocks() {
+    rm -f "$MOCK_FILE"
+}
+export -f teardown_mocks
+
+log_mock_call() {
+    local normalized_args=()
+    for arg in "$@"; do
+        if [[ -z "$arg" ]]; then continue; fi
+        normalized_args+=("$(normalize --escape "$arg")");
+    done
+    echo "$(command pwd) ${normalized_args[*]}" >> "$MOCK_FILE"
+}
+export -f log_mock_call
+
+get_mock_dir_calls() {
+    grep -E "^$(sanitize "$1")\b" "$MOCK_FILE" | cut -d' ' -f2-
+}
+export -f get_mock_dir_calls
+
+get_mock_call_args() {
+    grep -E "^\S+\s+$(sanitize "$1")\b" "$MOCK_FILE" | cut -d' ' -f2-
+}
+export -f get_mock_call_args
+
+get_mock_call_order() {
+    grep -nE "^\S+\s+$(sanitize "$@")\b" "$MOCK_FILE" | cut -d: -f1
+}
+export -f get_mock_call_order
+
+get_mock_call_args_matching() {
+    local fn_name="$1"; shift
+    local call_args
+    local required_args=()
+    for arg in "$@"; do
+        required_args+=("$(normalize "$arg")")
+    done
+
+    while IFS= read -r call_args; do
+        readarray -td '' args < <(eval "printf '%s\0' $call_args")
+        for i in "${!args[@]}"; do
+            if [[ "${args[i]}" == *" "* ]]; then
+                args[i]="\"${args[i]}\""
+            fi
+        done
+
+        local match=1
+        local req_idx=0
+        local arg_idx=0
+
+        while (( req_idx < ${#required_args[@]} )); do
+            local expected="${required_args[req_idx]}"
+            local next_expected="${required_args[req_idx+1]}"
+
+            if \
+                [[ "$expected" = --* ]] \
+                    && [[ -n "$next_expected" ]] \
+                    && [[ "$next_expected" != --* ]]; \
+            then
+                local found=0
+                for ((j=0; j < ${#args[@]} - 1; j++)); do
+                    if \
+                        [[ "${args[j]}" == "$expected" ]] \
+                            && [[ "${args[j+1]}" == "$next_expected" ]]; \
+                    then
+                        found=1
+                        break
+                    fi
+                done
+                if (( ! found )); then
+                    match=0
+                    break
+                fi
+                ((req_idx++))
+            else
+                local found=0
+                while (( arg_idx < ${#args[@]} )); do
+                    if [[ "${args[arg_idx]}" == "$expected" ]]; then
+                        found=1
+                        ((arg_idx++))
+                        break
+                    fi
+                    ((arg_idx++))
+                done
+                if (( ! found )); then
+                    match=0
+                    break
+                fi
+            fi
+            ((req_idx++))
+        done
+
+        if (( match )); then
+            echo "$call_args"
+        fi
+    done < <(get_mock_call_args "$fn_name")
+}
+export -f get_mock_call_args_matching
+
+set_mock_state() {
+    local key="$1"
+    local value="$2"
+    echo "__STATE__ $key=$(normalize --escape "$value")" >> "$MOCK_FILE"
+}
+export -f set_mock_state
+
+get_mock_state() {
+    local key="$1"
+    local value=$(grep "^__STATE__ $key=" "$MOCK_FILE" \
+        | tail -n 1 | cut -d'=' -f2-)
+    denormalize "$value"
+}
+export -f get_mock_state
+
+assert_mock_called_in_dir() {
+    local dir="$1"; shift
+    if [[ -n "$dir" ]]; then dir="/code/$dir"
+    else dir="/code"; fi
+    local fn_name="$1"; shift
+    local calls=$(get_mock_dir_calls "$dir $fn_name" "$@")
+    if [[ -z "$calls" ]]; then
+        local dir_calls=$(get_mock_dir_calls "$dir" "$fn_name" \
+            | command sed 's/\\"/"/g;s/^/                /')
+        fail -e "Mock function '$fn_name' was not called in directory '$dir':
+            expected: \n                $fn_name "$(format_args "$@")"
+            actual: \n$dir_calls"
+    fi
+}
+
+assert_mock_called_times() {
+    local exp="$1"; shift
+    local act=$(get_mock_call_args_matching "$@" | wc -l)
+    if [[ "$exp" != 0 ]] && (( act == 0 )); then
+        local calls=$(get_mock_call_args "$1" \
+            | command sed 's/\\"/"/g;s/^/                /')
+        fail -e "Mock function '$1' was not called with expected arguments:
+            expected: \n                "$(format_args "$@")"
+            actual: \n$calls"
+    fi
+    if (( act != exp )); then
+        fail "Mock function '$1' was not called the expected number of times:
+            "$(format_args "$@")"
+            expected: $exp
+            actual: $act"
+    fi
+}
+
+assert_mock_called_once() {
+    assert_mock_called_times 1 "$@"
+}
+
+assert_mocks_called_in_order() {
+    local calls=()
+    local arg=""
+    local IFS=' '
+    for part in $(format_args "$@"); do
+        if [[ "$part" == "--" ]]; then
+            calls+=("$arg")
+            arg=""
+        else
+            if [[ -n "$arg" ]]; then
+                arg="$arg $part"
+            else
+                arg="$part"
+            fi
+        fi
+    done
+    calls+=("$arg")
+
+    for (( i=0; i < ${#calls[@]} - 1; i++ )); do
+        local args1="${calls[i]}"
+        local args2="${calls[i+1]}"
+        local line1="$(get_mock_call_order "$args1" | head -n 1)"
+        local line2="$(get_mock_call_order "$args2" | tail -n 1)"
+        if [[ -z "$line1" ]]; then
+            fail "Mock function '$args1' was not called"
+        elif [[ -z "$line2" ]]; then
+            fail "Mock function '$args2' was not called"
+        elif (( line1 > line2 )); then
+            fail "Mock functions not called in expected order:
+                expected: $args1,
+                    before: $args2"
+        fi
+    done
+}
+
+assert_mock_state() {
+    assert_equal "$(format_args "$(get_mock_state "$1")")" "$(format_args "$2")"
+}
+
+mock() {
+    local fn_name="$1"; shift
+    eval "$fn_name() {
+        log_mock_call \"$fn_name\" \"\$@\"
+    }"
+    export -f "$fn_name"
+}

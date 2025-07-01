@@ -1,0 +1,21 @@
+test() {
+    local os="$(uname -s)"
+    local root="$(pwd)"
+    if [[ "$os" == "MINGW"* || "$os" == "MSYS"* || "$os" == "CYGWIN"* ]]; then
+        root="$(cygpath -w "$root")"
+    fi
+
+    echo
+    echo "Running command BATS tests..."
+    docker run --rm -it \
+        --name folio-tests-bats \
+        -v "$root:/code" \
+        bats/bats:latest \
+        cli/tests/
+    if [[ $? -eq 0 ]];  then
+        echo "BATS tests passed successfully."
+    else
+        echo "BATS tests failed."
+        return 1
+    fi
+}
