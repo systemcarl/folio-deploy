@@ -1,0 +1,33 @@
+containerize() {
+    echo
+    echo "Building SvelteKit application..."
+
+    if [[ ! -d folio ]]; then
+        echo "Error: 'folio' directory does not exist."
+        return 1
+    fi
+    cd folio
+    npm install
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to install dependencies."
+        return 1
+    fi
+    echo "Dependencies installed successfully."
+
+    npm run build
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to build SvelteKit application."
+        return 1
+    fi
+    echo "SvelteKit application built successfully."
+    cd ..
+
+    echo
+    echo "Building Docker image..."
+    docker build -t folio:latest .
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to build Docker image."
+        return 1
+    fi
+    echo "Docker image built successfully."
+}
