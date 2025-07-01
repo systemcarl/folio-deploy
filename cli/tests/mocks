@@ -1,0 +1,156 @@
+#!/usr/bin/env bats
+
+setup_mocks() {
+    export MOCK_FILE="$(mktemp)"
+    : > "$MOCK_FILE"
+}
+export -f setup_mocks
+
+teardown_mocks() {
+    rm -f "$MOCK_FILE"
+}
+export -f teardown_mocks
+
+log_mock_call() {
+    echo "$(pwd) $*" >> "$MOCK_FILE"
+}
+export -f log_mock_call
+
+get_mock_dir_calls() {
+    local match=$(printf '%s ' "$@" | sed -E 's/ +$//')
+    grep -E "^$match\b" "$MOCK_FILE" | cut -d' ' -f2-
+}
+export -f get_mock_dir_calls
+
+get_mock_call_args() {
+    local match=$(printf '%s ' "$@" | sed -E 's/ +$//')
+    grep -E "^\S+\s+$match\b" "$MOCK_FILE" | cut -d' ' -f2-
+}
+export -f get_mock_call_args
+
+get_mock_call_order() {
+    local match=$(printf '%s ' "$@" | sed -E 's/ +$//')
+    grep -nE "^\S+\s+$match\b" "$MOCK_FILE" | cut -d: -f1
+}
+
+get_mock_call_args_matching() {
+    local fn_name="$1"; shift
+    local required_args=("$@")
+    local call_args
+
+    while IFS= read -r call_args; do
+        read -r -a args <<< "$call_args"
+
+        local match=1
+        local req_idx=0
+        local arg_idx=0
+
+        while (( req_idx < ${#required_args[@]} )); do
+            local expected="${required_args[req_idx]}"
+            local next_expected="${required_args[req_idx+1]}"
+
+            if \
+                [[ "$expected" = --* ]] \
+                    && [[ -n "$next_expected" ]] \
+                    && [[ "$next_expected" != --* ]]; \
+            then
+                local found=0
+                for ((j=0; j < ${#args[@]} - 1; j++)); do
+                    if \
+                        [[ "${args[j]}" == "$expected" ]] \
+                            && [[ "${args[j+1]}" == "$next_expected" ]]; \
+                    then
+                        found=1
+                        break
+                    fi
+                done
+                if (( ! found )); then
+                    match=0
+                    break
+                fi
+                ((req_idx++))
+            else
+                local found=0
+                while (( arg_idx < ${#args[@]} )); do
+                    if [[ "${args[arg_idx]}" == "$expected" ]]; then
+                        found=1
+                        ((arg_idx++))
+                        break
+                    fi
+                    ((arg_idx++))
+                done
+                if (( ! found )); then
+                    match=0
+                    break
+                fi
+            fi
+            ((req_idx++))
+        done
+
+        if (( match )); then
+            echo "$call_args"
+        fi
+    done < <(get_mock_call_args "$fn_name")
+}
+export -f get_mock_call_args_matching
+
+assert_mock_called_in_dir() {
+    local dir="$1"; dir="/code/$dir"; shift
+    local fn_name="$1"; shift
+    local calls=$(get_mock_dir_calls "$dir $fn_name" "$@")
+    if [[ -z "$calls" ]]; then
+        local dir_calls=$(get_mock_dir_calls "$dir" "$fn_name" \
+            | sed 's/\\"/"/g' | sed 's/^/                /')
+        fail -e "Mock function '$fn_name' was not called in directory '$dir':
+            expected: \n                $fn_name $@
+            actual: \n$dir_calls"
+    fi
+}
+
+assert_mock_called_times() {
+    local exp="$1"; shift
+    local act=$(get_mock_call_args_matching "$@" | wc -l)
+    if [[ "$exp" != 0 ]] && (( act == 0 )); then
+        local calls=$(get_mock_call_args "$1" \
+            | sed 's/\\"/"/g' | sed 's/^/                /')
+        fail -e "Mock function '$1' was not called with expected arguments:
+            expected: \n                $@
+            actual: \n$calls"
+    fi
+    if (( act != exp )); then
+        fail "Mock function '$@' was not called the expected number of times:
+            expected: $exp
+            actual: $act"
+    fi
+}
+
+assert_mock_called_once() {
+    assert_mock_called_times 1 "$@"
+}
+
+assert_mocks_called_in_order() {
+    local arg_str="$*"
+    local args1="${arg_str%% -- *}"
+    local args2="${arg_str#* -- }"
+    local line1="$(get_mock_call_order "$args1" | head -n 1)"
+    local line2="$(get_mock_call_order "$args2" | tail -n 1)"
+    if [[ -z "$line1" ]]; then
+        fail "Mock function '$args1' was not called"
+    elif [[ -z "$line2" ]]; then
+        fail "Mock function '$args2' was not called"
+    elif (( line1 > line2 )); then
+        fail "Mock functions not called in expected order:
+            expected: $args1,
+                before: $args2;
+            actual: $args2,
+                then: $args1"
+    fi
+}
+
+mock() {
+    local fn_name="$1"; shift
+    eval "$fn_name() {
+        log_mock_call \"$fn_name\" \"\$@\"
+    }"
+    export -f "$fn_name"
+}
