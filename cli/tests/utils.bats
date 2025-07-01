@@ -3,6 +3,7 @@
 TEST_DIR="$(realpath "$(dirname "$BATS_TEST_FILENAME")")"
 source "$TEST_DIR/mocks"
 source "$TEST_DIR/../utils/environment"
+source "$TEST_DIR/../utils/json"
 source "$TEST_DIR/../utils/package"
 
 setup() {
@@ -12,6 +13,12 @@ setup() {
 
     mock npm
     mock docker
+
+    node() {
+        log_mock_call node "$@"
+        echo $(get_mock_state node_response)
+    }
+    set_mock_state node_response "value"
 
     export ENVIRONMENT="test"
     export FOLIO_GH_NAMESPACE="test-namespace"
@@ -156,4 +163,26 @@ teardown() {
     run get_version cli/tests
     assert_success
     assert_output "1.2.3"
+}
+
+@test "query json evaluates correct statements" {
+    run query_json '{"key": "value"}' "key"
+    assert_success
+    assert_mock_called_once node -e "
+        const json = JSON.parse(process.argv[1]);
+        console.log(json[process.argv[2]]);
+    "
+}
+
+@test "passes json passes json and query" {
+    run query_json '{"key": "value"}' "key"
+    assert_success
+    assert_mock_called_once node -- '{"key": "value"}' "key"
+}
+
+@test "query json returns value" {
+    set_mock_state node_response "value"
+    run query_json '{"key": "value"}' "key"
+    assert_success
+    assert_output "value"
 }

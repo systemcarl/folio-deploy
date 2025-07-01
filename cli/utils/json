@@ -1,0 +1,16 @@
+query_json() {
+    local json="$1"
+    local query="$2"
+
+    local output=$(node -e "
+        const json = JSON.parse(process.argv[1]);
+        console.log(json[process.argv[2]]);
+    " -- "$json" "$query" 2>/dev/null)
+    if [[ "$output" == "" ]]; then
+        echo "Error: Unable to parse JSON or query not found." >&2
+        echo "  json: $json" >&2
+        echo "  query: $query" >&2
+        return 1
+    fi
+    echo "$output"
+}

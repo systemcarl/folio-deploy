@@ -1,0 +1,52 @@
+source "$(dirname "${BASH_SOURCE[0]}")/utils/json"
+
+status() {
+    usage() {
+        echo "Usage: status [options]"
+        echo "Options:"
+        echo "  --namespace         Specify the GitHub repository namespace"
+        echo "  --token             Specify the GitHub API token"
+        echo "Environment Variables:"
+        echo "  GITHUB_NAMESPACE    The GitHub namespace for the repository"
+        echo "  GITHUB_TOKEN        The GitHub API token for authentication"
+    }
+
+    while [[ "$1" != "" ]]; do
+        case "$1" in
+            --namespace) GITHUB_NAMESPACE="$2"; shift;;
+            --token) GITHUB_TOKEN="$2"; shift;;
+            --help|-h) usage; exit 0;;
+            *) echo "Unknown option: $1"; usage; exit 1;;
+        esac
+        shift
+    done
+
+    if [[ -z "$GITHUB_NAMESPACE" ]]; then
+        echo "Error: GitHub namespace required for status check."
+        usage
+        return 1
+    fi
+    if [[ -z "$GITHUB_TOKEN" ]]; then
+        echo "Error: GitHub API token required for status check."
+        usage
+        return 1
+    fi
+
+    local repo="https://api.github.com/repos/$GITHUB_NAMESPACE/folio"
+    local response=$(curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        -H "Authorization Bearer $GITHUB_TOKEN" \
+        "$repo/commits/main/status")
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to fetch status from GitHub API"
+        echo $response
+        return 1
+    fi
+
+    local state=$(query_json "$response" 'state')
+    if [[ -z "$state" ]] || [[ "$state" == "undefined" ]]; then
+        echo "Error: Unexpected response from GitHub API"
+        return 1
+    fi
+    echo "$state"
+}
