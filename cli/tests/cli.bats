@@ -13,6 +13,7 @@ setup() {
     mock containerize
     mock deploy
     mock destroy
+    mock status
     mock validate
 }
 
@@ -137,6 +138,46 @@ teardown() {
 @test "destroy script exits with destroy function non-zero status" {
     destroy() { return 1; }
     run ./destroy
+    assert_failure
+}
+
+@test "status script changes working directory to project root" {
+    run ./status
+    assert_success
+    assert_mock_called_once cd "/code"
+}
+
+@test "status script changes working directory before sourcing" {
+    run ./status
+    assert_success
+    assert_mocks_called_in_order \
+        cd "/code" -- \
+        source "./cli/status"
+}
+
+@test "status script sources the status file" {
+    run ./status
+    assert_success
+    assert_mock_called_once source "./cli/status"
+}
+
+@test "status script sources before calling status function" {
+    run ./status
+    assert_success
+    assert_mocks_called_in_order \
+        source "./cli/status" -- \
+        status
+}
+
+@test "status script passes arguments to status function" {
+    run ./status --arg1 value1 --arg2 value2
+    assert_success
+    assert_mock_called_once status --arg1 value1 --arg2 value2
+}
+
+@test "status script exits with status function non-zero status" {
+    status() { return 1; }
+    run ./status
     assert_failure
 }
 
