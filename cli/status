@@ -1,0 +1,48 @@
+source "$(dirname "${BASH_SOURCE[0]}")/utils/environment"
+source "$(dirname "${BASH_SOURCE[0]}")/utils/json"
+
+status() {
+    usage() {
+        echo "Usage: $0 [options]"
+        echo "Options:"
+        echo "  --token             Specify the GitHub API token"
+        echo "  --help, -h          Show this help message"
+        echo "Environment Variables:"
+        echo "  FOLIO_GH_TOKEN      The GitHub API token for authentication"
+    }
+
+    load_env
+
+    while [[ "$1" != "" ]]; do
+        case "$1" in
+            --help | -h ) usage; exit 0;;
+            --token ) FOLIO_GH_TOKEN="$2"; shift;;
+            * ) echo "Unknown option: $1"; usage; exit 1;;
+        esac
+        shift
+    done
+
+    if [[ -z "$FOLIO_GH_TOKEN" ]]; then
+        echo "Error: GitHub API token required for status check."
+        usage
+        return 1
+    fi
+
+    local repo="https://api.github.com/repos/$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO"
+    local response=$(curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        -H "Authorization: Bearer $FOLIO_GH_TOKEN" \
+        "$repo/commits/main/status")
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to fetch status from GitHub API"
+        echo $response
+        return 1
+    fi
+
+    local state=$(query_json "$response" "state")
+    if [[ -z "$state" ]] || [[ "$state" == "undefined" ]]; then
+        echo "Error: Unexpected response from GitHub API"
+        return 1
+    fi
+    echo "$state"
+}

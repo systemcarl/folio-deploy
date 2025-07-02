@@ -3,6 +3,7 @@
 TEST_DIR="$(realpath "$(dirname "$BATS_TEST_FILENAME")")"
 source "$TEST_DIR/mocks"
 source "$TEST_DIR/../utils/environment"
+source "$TEST_DIR/../utils/json"
 source "$TEST_DIR/../utils/package"
 source "$TEST_DIR/../utils/repo"
 
@@ -12,6 +13,12 @@ setup() {
     setup_mocks
 
     mock npm
+
+    node() {
+        log_mock_call node "$@"
+        echo $(get_mock_state node_response)
+    }
+    set_mock_state node_response "value"
 
     git() {
         log_mock_call git "$@"
@@ -44,6 +51,7 @@ setup_env() {
     FOLIO_GCS_CREDENTIALS="/path/to/test_gcs_creds.json"
     FOLIO_CF_TOKEN="cf_test"
     FOLIO_DO_TOKEN="do_test"
+    FOLIO_GH_TOKEN="gh_test"
 }
 
 teardown() {
@@ -133,6 +141,12 @@ teardown() {
     assert_equal "$FOLIO_DO_TOKEN" "do_test"
 }
 
+@test "uses environment GitHub token" {
+    setup_env
+    load_env --env-file ""
+    assert_equal "$FOLIO_GH_TOKEN" "gh_test"
+}
+
 @test "loads environment file variable" {
     setup_env
     load_env --env-file "cli/tests/test.env"
@@ -191,6 +205,34 @@ teardown() {
     setup_env
     load_env --env-file "cli/tests/test.env"
     assert_equal "$FOLIO_DO_TOKEN" "do_env"
+}
+
+@test "loads environment file GitHub token" {
+    setup_env
+    load_env --env-file "cli/tests/test.env"
+    assert_equal "$FOLIO_GH_TOKEN" "gh_env"
+}
+
+@test "queries json using correct statements" {
+    run query_json '{"key": "value"}' "key"
+    assert_success
+    assert_mock_called_once node -e "
+        const json = JSON.parse(process.argv[1]);
+        console.log(json[process.argv[2]]);
+    "
+}
+
+@test "queries json with correct literals" {
+    run query_json '{"key": "value"}' "key"
+    assert_success
+    assert_mock_called_once node -- '{"key": "value"}' "key"
+}
+
+@test "queries json property value" {
+    set_mock_state node_response "value"
+    run query_json '{"key": "value"}' "key"
+    assert_success
+    assert_output "value"
 }
 
 @test "gets version of application" {
