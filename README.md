@@ -37,6 +37,9 @@ scripts:
 - `FOLIO_DO_TOKEN`: The DigitalOcean API token used to create and manage
     the application server. See [*Deployment*](#deployment) for required
     permission scopes.
+- `FOLIO_GH_TOKEN`: The GitHub API token used to update the commit status
+    of the application and CI/CD pipeline. See [*Status*](#code-status) for
+    required permission scopes.
 
 ## Validation
 Before building the application, you can validate the application code using
@@ -159,3 +162,15 @@ are run using a BATS Docker container that is automatically pulled and executed.
 ```bash
 test
 ```
+
+### Code Status
+The commit status of both the `folio` application can be retrieved from GitHub.
+The `status` script retrieves the status of the current head of the main branch.
+```bash
+status
+```
+
+The configured GitHub API token must have the scopes:
+- `commit_status:read`,
+- `commit_status:write`,
+- `contents:read`
