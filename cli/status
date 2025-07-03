@@ -3,8 +3,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/utils/json"
 
 status() {
     usage() {
-        echo "Usage: $0 [options]"
+        echo "Usage:"
+        echo "   $0 [options] [branch]"
+        echo "   $0 set [options] [status]"
+        echo "   $0 set [options] [branch] [status]"
         echo "Options:"
+        echo "  --description       Specify the status description"
         echo "  --token             Specify the GitHub API token"
         echo "  --help, -h          Show this help message"
         echo "Environment Variables:"
@@ -13,14 +17,39 @@ status() {
 
     load_env
 
+    local set_status=false
+    if [[ "$1" == "set" ]]; then
+        set_status=true; shift
+    elif [[ "$1" == "get" ]]; then
+        shift
+    fi
+
+    local branch=""
+    local status=""
+    local description="Automated validation by CI."
     while [[ "$1" != "" ]]; do
         case "$1" in
             --help | -h ) usage; exit 0;;
+            --description ) description="$2"; shift;;
             --token ) FOLIO_GH_TOKEN="$2"; shift;;
-            * ) echo "Unknown option: $1"; usage; exit 1;;
+            * ) if [[ "$branch" == "" ]]; then branch="$1"
+                elif $set_status && [[ "$status" == "" ]]; then
+                    status="$1"
+                else echo "Too many arguments: $1"; usage; return 1;
+                fi;;
         esac
         shift
     done
+    if [[ "$set_status" == "true" ]] && [[ -z "$status" ]]; then
+        if [[ -z "$branch" ]]; then
+            echo "Error: Branch name required for setting status."
+            usage
+            return 1
+        fi
+        status=$(echo $branch)
+        branch=""
+    fi
+    if [[ -z "$branch" ]]; then branch="main"; fi
 
     if [[ -z "$FOLIO_GH_TOKEN" ]]; then
         echo "Error: GitHub API token required for status check."
@@ -29,20 +58,113 @@ status() {
     fi
 
     local repo="https://api.github.com/repos/$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO"
-    local response=$(curl -s \
+    local get_status_response
+    get_status_response=$(curl -s \
         -H "Accept: application/vnd.github.v3+json" \
         -H "Authorization: Bearer $FOLIO_GH_TOKEN" \
-        "$repo/commits/main/status")
+        "$repo/commits/$branch/statuses")
     if [[ $? -ne 0 ]]; then
         echo "Error: Failed to fetch status from GitHub API"
-        echo $response
+        echo $get_status_response
         return 1
     fi
 
-    local state=$(query_json "$response" "state")
-    if [[ -z "$state" ]] || [[ "$state" == "undefined" ]]; then
-        echo "Error: Unexpected response from GitHub API"
+    local get_status_response_code
+    get_status_response_code=$(query_json "$get_status_response" "status")
+    if [[ "$get_status_response_code" =~ ^[3-5][0-9]{2}$ ]]; then
+        echo "Error: GitHub API returned an error: $get_status_response_code"
+        echo $get_status_response
         return 1
     fi
-    echo "$state"
+
+    local commit_status
+    commit_status=$(find_json -l "$get_status_response" \
+        "context" "ci/folio-deploy")
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to find commit status in response from GitHub API"
+        echo $get_status_response
+        return 1
+    fi
+
+    local state=""
+    if [[ -n "$commit_status" ]] && [[ "$commit_status" != '""' ]]; then
+        state=$(query_json -e "$commit_status" "state")
+        if [[ $? -ne 0 ]]; then
+            echo "Error: Failed to parse status response from GitHub API"
+            echo $get_status_response
+            return 1
+        fi
+    fi
+
+    if [[ "$set_status" == "false" ]]; then
+        if [[ -z "$state" ]]; then echo "none"
+        else echo "$state"
+        fi
+        return 0
+    fi
+
+    if [[ "$state" == "$status" ]]; then
+        echo "$state"
+        return 0
+    fi
+
+    local get_sha_response
+    get_sha_response=$(curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        -H "Authorization: Bearer $FOLIO_GH_TOKEN" \
+        "$repo/commits/$branch")
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to fetch commit details from GitHub API"
+        echo $get_sha_response
+        return 1
+    fi
+
+    local get_sha_response_code
+    get_sha_response_code=$(query_json "$get_sha_response" "status")
+    if [[ "$get_sha_response_code" =~ ^[3-5][0-9]{2}$ ]]; then
+        echo "Error: GitHub API returned an error: $get_sha_response_code"
+        echo $get_sha_response
+        return 1
+    fi
+
+    local sha
+    sha=$(query_json -e "$get_sha_response" "sha")
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to parse commit SHA from GitHub API response"
+        echo $get_sha_response
+        return 1
+    fi
+
+    local post_status_response
+    post_status_response=$(curl -s -X POST \
+        -H "Accept: application/vnd.github.v3+json" \
+        -H "Authorization: Bearer $FOLIO_GH_TOKEN" \
+        "$repo/statuses/$sha" \
+        -d '{
+            "state": "'"$status"'",
+            "context": "ci/folio-deploy",
+            "description": "'"$description"'"
+        }')
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to set status on GitHub"
+        echo $post_status_response
+        return 1
+    fi
+
+    local post_status_response_code
+    post_status_response_code=$(query_json "$post_status_response" "status")
+    if [[ "$post_status_response_code" =~ ^[3-5][0-9]{2}$ ]]; then
+        echo "Error: GitHub API returned an error: $post_status_response_code"
+        echo $post_status_response
+        return 1
+    fi
+
+    status=$(query_json -e "$post_status_response" "state")
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to parse response from GitHub API"
+        echo $post_status_response
+        return 1
+    fi
+
+    echo "$status"
 }

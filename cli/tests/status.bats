@@ -13,15 +13,57 @@ setup() {
 
     curl() {
         log_mock_call curl "$@"
-        echo $(get_mock_state "curl_response")
+        if [[ " $* " != *" POST "* ]] && [[ "$*" == *"/statuses"* ]]; then
+            echo $(get_mock_state "get_response")
+        elif [[ " $* " == *" POST "* ]]; then
+            echo $(get_mock_state "post_response")
+        else
+            echo $(get_mock_state "sha_response")
+        fi
     }
 
     query_json() {
         log_mock_call query_json "$@"
-        echo $(get_mock_state "curl_response")
+        local j="${@: -2:1}"
+        local q="${@: -1:1}"
+        local get_response=$(get_mock_state get_response)
+        local post_response=$(get_mock_state post_response)
+        local sha_response=$(get_mock_state sha_response)
+        local find_context_result=$(get_mock_state find_context_result)
+        if [[ "$j" == "$get_response" ]] && [[ "$q" == "status" ]]; then
+            echo $(get_mock_state "query_get_response_status_result")
+        elif [[ "$j" == "$post_response" ]] && [[ "$q" == "status" ]]; then
+            echo $(get_mock_state "query_post_response_status_result")
+        elif [[ "$j" == "$sha_response" ]] && [[ "$q" == "status" ]]; then
+            echo $(get_mock_state "query_get_sha_response_status_result")
+        elif [[ "$j" == "$find_context_result" ]] && [[ "$q" == "state" ]]; then
+            echo $(get_mock_state "query_get_response_state_result")
+        elif [[ "$j" == "$post_response" ]] && [[ "$q" == "state" ]]; then
+            echo $(get_mock_state "query_post_response_state_result")
+        elif [[ "$j" == "$sha_response" ]] && [[ "$q" == "sha" ]]; then
+            echo $(get_mock_state "query_get_sha_response_sha_result")
+        fi
     }
 
-    set_mock_state curl_response '{"state": "success"}'
+    find_json() {
+        log_mock_call find_json "$@"
+        echo $(get_mock_state "find_context_result")
+    }
+
+    set_mock_state get_response \
+        '[{"context": "ci/folio-deploy", "state": "pending"}]'
+    set_mock_state post_response \
+        '{"context": "ci/folio-deploy", "state": "success"}'
+    set_mock_state sha_response \
+        '{"sha": "abcd1234"}'
+    set_mock_state query_get_response_status_result ""
+    set_mock_state query_get_sha_response_status_result ""
+    set_mock_state query_post_response_status_result ""
+    set_mock_state query_get_response_state_result "pending"
+    set_mock_state query_get_sha_response_sha_result "abcd1234"
+    set_mock_state query_post_response_state_result "success"
+    set_mock_state find_context_result \
+        '[{"context": "ci/folio-deploy", "state": "pending"}]'
 
     mock load_env
 
@@ -37,7 +79,7 @@ teardown() {
 @test "gets commit status" {
     run status
     assert_success
-    assert_output --partial "success"
+    assert_output --partial "pending"
 }
 
 @test "requires GutHub token" {
@@ -53,13 +95,20 @@ teardown() {
     assert_success
 }
 
-@test "fetches status from GitHub API" {
+@test "fetches main status from GitHub API" {
     run status
     assert_success
-    assert_output --partial "success"
     assert_mock_called_once curl -s \
         -H "Accept: application/vnd.github.v3+json" \
-        "$GITHUB/repos/app-account/app-repo/commits/main/status"
+        "$GITHUB/repos/app-account/app-repo/commits/main/statuses"
+}
+
+@test "fetches specified branch status from GitHub API" {
+    run status test
+    assert_success
+    assert_mock_called_once curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        "$GITHUB/repos/app-account/app-repo/commits/test/statuses"
 }
 
 @test "fetches status with authorization header" {
@@ -76,16 +125,184 @@ teardown() {
         -H "Authorization: Bearer 456def"
 }
 
-@test "queries commit status JSON" {
-    set_mock_state curl_response '{"state": "value"}'
+@test "queries fetch status response status code" {
+    set_mock_state get_response '{"status": 200}'
+    run status
+    assert_success
+    assert_mock_called_once query_json '{"status": 200}' "status"
+}
+
+@test "returns status code from failed fetch status request" {
+    set_mock_state query_get_response_status_result 418
+    run status
+    assert_failure
+    assert_output --partial "Error: GitHub API returned an error: 418"
+}
+
+@test "finds commit status in response" {
+    set_mock_state get_response \
+        '[{"context": "ci/folio-deploy", "state": "value"}]'
+    run status
+    assert_success
+    assert_mock_called_once find_json -l \
+        '[{"context": "ci/folio-deploy", "state": "value"}]' \
+        'context' 'ci/folio-deploy'
+}
+
+@test "defaults to 'none' state when no status found" {
+    set_mock_state find_context_result ""
+    run status
+    assert_success
+    assert_output "none"
+}
+
+@test "does not query commit status state when no status found" {
+    set_mock_state find_context_result ""
+    run status
+    assert_success
+    assert_mock_not_called query_json "" "state"
+}
+
+@test "queries commit status state" {
+    set_mock_state find_context_result '{"state": "value"}'
     run status
     assert_success
     assert_mock_called_once query_json '{"state": "value"}' "state"
 }
 
 @test "returns commit status" {
-    set_mock_state curl_response '{"state": "value"}'
+    set_mock_state query_get_response_state_result "value"
     run status
     assert_success
-    assert_output --partial "value"
+    assert_output "value"
+}
+
+@test "does not set status" {
+    run status
+    assert_success
+    assert_mock_not_called curl -X POST
+}
+
+@test "does not set status when getting status" {
+    run status get
+    assert_success
+    assert_mock_not_called curl -X POST
+}
+
+@test "sets status" {
+    set_mock_state query_post_response_state_result "value"
+    run status set value
+    assert_success
+    assert_output "value"
+}
+
+@test "sets status when no status set" {
+    set_mock_state find_context_result ""
+    run status set value
+    assert_success
+    assert_mock_called_once curl -s -X POST \
+        -H "Accept: application/vnd.github.v3+json" \
+        "$GITHUB/repos/app-account/app-repo/statuses/abcd1234" \
+        -d '{
+            "state": "value",
+            "context": "ci/folio-deploy",
+            "description": "Automated validation by CI."
+        }'
+}
+
+@test "does not set status when status already set" {
+    set_mock_state query_get_response_state_result "value"
+    run status set value
+    assert_success
+    assert_mock_not_called curl -X POST
+}
+
+@test "fetches commit SHA" {
+    run status set branch value
+    assert_success
+    assert_mock_called_once curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        "$GITHUB/repos/app-account/app-repo/commits/branch"
+}
+
+@test "queries fetch commit SHA response status code" {
+    set_mock_state sha_response '{"status": 200}'
+    run status set branch value
+    assert_success
+    assert_mock_called_once query_json '{"status": 200}' "status"
+}
+
+@test "returns status code from failed fetch commit SHA request" {
+    set_mock_state query_get_sha_response_status_result 418
+    run status set branch value
+    assert_failure
+    assert_output --partial "Error: GitHub API returned an error: 418"
+}
+
+@test "queries fetch commit SHA response SHA" {
+    set_mock_state sha_response '{"sha": "abcd1234"}'
+    run status set branch value
+    assert_success
+    assert_mock_called_once query_json '{"sha": "abcd1234"}' "sha"
+}
+
+@test "sets status of main" {
+    run status set main value
+    assert_success
+    assert_mock_called_once curl -s -X POST \
+        -H "Accept: application/vnd.github.v3+json" \
+        "$GITHUB/repos/app-account/app-repo/statuses/abcd1234" \
+        -d '{
+            "state": "value",
+            "context": "ci/folio-deploy",
+            "description": "Automated validation by CI."
+        }'
+}
+
+@test "sets status with authorization header" {
+    run status set value
+    assert_success
+    assert_mock_called_once curl -s -X POST \
+        -H "Authorization: Bearer abc123"
+}
+
+@test "sets status using token" {
+    run status set --token 456def value
+    assert_success
+    assert_mock_called_once curl -s -X POST \
+        -H "Authorization: Bearer 456def"
+}
+
+@test "sets status with description" {
+    run status set value --description "Im a teapot."
+    assert_success
+    assert_mock_called_once curl -s -X POST \
+        -H "Accept: application/vnd.github.v3+json" \
+        "$GITHUB/repos/app-account/app-repo/statuses/abcd1234" \
+        -d '{
+            "state": "value",
+            "context": "ci/folio-deploy",
+            "description": "Im a teapot."
+        }'
+}
+
+@test "queries set status response status code" {
+    set_mock_state post_response '{"status": 201}'
+    run status set value
+    assert_success
+    assert_mock_called_once query_json '{"status": 201}' "status"
+}
+
+@test "returns status code from failed set status request" {
+    set_mock_state query_post_response_status_result 418
+    run status set value
+    assert_failure
+    assert_output --partial "Error: GitHub API returned an error: 418"
+}
+
+@test "queries set status response state" {
+    set_mock_state post_response '{"state": "value"}'
+    run status set value
+    assert_success
+    assert_mock_called_once query_json '{"state": "value"}' "state"
 }

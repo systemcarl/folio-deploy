@@ -235,6 +235,67 @@ teardown() {
     assert_output "value"
 }
 
+@test "does not raise error when json property is not found" {
+    set_mock_state node_response "undefined"
+    run query_json '{"key": "value"}' "value"
+    assert_success
+    assert_output "undefined"
+}
+
+@test "raises error when json property is not found" {
+    set_mock_state node_response "undefined"
+    run query_json -e '{"key": "value"}' "value"
+    assert_failure
+    assert_output --partial "Error: Unable to parse JSON or query not found."
+}
+
+@test "find json first item with correct statements" {
+    run find_json '[{"key": "value"}]' "key" "value"
+    assert_success
+    assert_mock_called_once node -e "
+        const json = JSON.parse(process.argv[1]);
+        const match = json.filter(i => i[process.argv[2]] === process.argv[3]);
+        console.log(JSON.stringify(match[0] || ''));
+    "
+}
+
+@test "finds json last item with correct statements" {
+    run find_json -l '[{"key": "value"}]' "key" "value"
+    assert_success
+    assert_mock_called_once node -e "
+        const json = JSON.parse(process.argv[1]);
+        const match = json.filter(i => i[process.argv[2]] === process.argv[3]);
+        console.log(JSON.stringify(match[match.length - 1] || ''));
+    "
+}
+
+@test "finds json item with correct literals" {
+    run find_json '[{"key": "value"}]' "key" "value"
+    assert_success
+    assert_mock_called_once node -- '[{"key": "value"}]' "key" "value"
+}
+
+@test "finds json item by key-value" {
+    set_mock_state node_response '{"key": "value"}'
+    run find_json '[{"key": "value"}]' "key" "value"
+    assert_success
+    assert_output '{"key": "value"}'
+}
+
+@test "does not raise error when json is not found" {
+    set_mock_state node_response ""
+    run find_json '[{"key": "value"}]' "value" "key"
+    assert_success
+    assert_output ""
+}
+
+@test "raises error when json is not found" {
+    set_mock_state node_response ""
+    run find_json -e '{"key": "value"}' "value" "key"
+    assert_failure
+    assert_output --partial "Error: Unable to find item in JSON."
+}
+
 @test "gets version of application" {
     run get_version cli/tests
     assert_success
