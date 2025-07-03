@@ -3,10 +3,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/utils/json"
 
 status() {
     usage() {
-        echo "Usage: $0 [options]"
+        echo "Usage:"
+        echo "   $0 [options] [branch]"
+        echo "   $0 set [options] [status]"
+        echo "   $0 set [options] [branch] [status]"
         echo "Options:"
-        echo "  --namespace         Specify the GitHub repository namespace"
-        echo "  --repo              Specify the GitHub repository name"
+        echo "  --description       Specify the status description"
         echo "  --token             Specify the GitHub API token"
         echo "  --help, -h          Show this help message"
         echo "Environment Variables:"
@@ -15,14 +17,39 @@ status() {
 
     load_env
 
+    local set_status=false
+    if [[ "$1" == "set" ]]; then
+        set_status=true; shift
+    elif [[ "$1" == "get" ]]; then
+        shift
+    fi
+
+    local branch=""
+    local status=""
+    local description="Automated validation by CI."
     while [[ "$1" != "" ]]; do
         case "$1" in
             --help | -h ) usage; exit 0;;
+            --description ) description="$2"; shift;;
             --token ) FOLIO_GH_TOKEN="$2"; shift;;
-            * ) echo "Unknown option: $1"; usage; exit 1;;
+            * ) if [[ "$branch" == "" ]]; then branch="$1"
+                elif $set_status && [[ "$status" == "" ]]; then
+                    status="$1"
+                else echo "Too many arguments: $1"; usage; return 1;
+                fi;;
         esac
         shift
     done
+    if $set_status && [[ -z "$status" ]]; then
+        if [[ -z "$branch" ]]; then
+            echo "Error: Branch name required for setting status."
+            usage
+            return 1
+        fi
+        status=$(echo $branch)
+        branch=""
+    fi
+    if [[ -z "$branch" ]]; then branch="main"; fi
 
     if [[ -z "$FOLIO_GH_TOKEN" ]]; then
         echo "Error: GitHub API token required for status check."
@@ -31,20 +58,84 @@ status() {
     fi
 
     local repo="https://api.github.com/repos/$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO"
-    local response=$(curl -s \
+    local get_response
+    get_response=$(curl -s \
         -H "Accept: application/vnd.github.v3+json" \
         -H "Authorization Bearer $FOLIO_GH_TOKEN" \
-        "$repo/commits/main/status")
+        "$repo/commits/$branch/statuses")
     if [[ $? -ne 0 ]]; then
         echo "Error: Failed to fetch status from GitHub API"
-        echo $response
+        echo $get_response
         return 1
     fi
 
-    local state=$(query_json "$response" "state")
-    if [[ -z "$state" ]] || [[ "$state" == "undefined" ]]; then
-        echo "Error: Unexpected response from GitHub API"
+    local response_code
+    response_code=$(query_json "$get_response" "status")
+    if [[ "$response_code" =~ ^[3-5][0-9]{2}$ ]]; then
+        echo "Error: GitHub API returned an error: $response_code"
+        echo $get_response
         return 1
     fi
-    echo "$state"
+
+    local commit_status
+    commit_status=$(find_json -l "$get_response" "context" "ci/folio-deploy")
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to find commit status in response from GitHub API"
+        echo $get_response
+        return 1
+    fi
+
+    local state=""
+    if [[ -n "$commit_status" ]]; then
+        state=$(query_json -e "$commit_status" "state")
+        if [[ $? -ne 0 ]]; then
+            echo "Error: Failed to parse status response from GitHub API"
+            echo $get_response
+            return 1
+        fi
+    fi
+
+    if ! $set_status; then
+        if [[ -z "$state" ]]; then echo "none"
+        else echo "$state"
+        fi
+        return 0
+    fi
+
+    if [[ "$state" == "$status" ]]; then
+        echo "$state"
+        return 0
+    fi
+
+    local post_response
+    post_response=$(curl -s -X POST \
+        -H "Accept: application/vnd.github.v3+json" \
+        -H "Authorization Bearer $FOLIO_GH_TOKEN" \
+        "$repo/statuses/$branch" \
+        -d '{
+            "state": "'"$status"'",
+            "context": "ci/folio-deploy",
+            "description": "'"$description"'"
+        }')
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to set status on GitHub"
+        echo $post_response
+        return 1
+    fi
+
+    response_code=$(query_json "$post_response" "status")
+    if [[ "$response_code" =~ ^[3-5][0-9]{2}$ ]]; then
+        echo "Error: GitHub API returned an error: $response_code"
+        echo $post_response
+        return 1
+    fi
+
+    status=$(query_json -e "$post_response" "state")
+    if [[ $? -ne 0 ]]; then
+        echo "Error: Failed to parse response from GitHub API"
+        echo $post_response
+        return 1
+    fi
+
+    echo "$status"
 }
