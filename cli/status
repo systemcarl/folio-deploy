@@ -8,6 +8,7 @@ status() {
         echo "   $0 set [options] [status]"
         echo "   $0 set [options] [branch] [status]"
         echo "Options:"
+        echo "  --self              Target the current repository"
         echo "  --description       Specify the status description"
         echo "  --token             Specify the GitHub API token"
         echo "  --help, -h          Show this help message"
@@ -24,12 +25,16 @@ status() {
         shift
     fi
 
+    local namespace="$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO"
     local branch=""
     local status=""
-    local description="Automated validation by CI."
+    local description="Automated validation by $FOLIO_CICD_REPO CI."
     while [[ "$1" != "" ]]; do
         case "$1" in
             --help | -h ) usage; exit 0;;
+            --self )
+                namespace="$FOLIO_CICD_ACCOUNT/$FOLIO_CICD_REPO"
+                description="Automated self-validation.";;
             --description ) description="$2"; shift;;
             --token ) FOLIO_GH_TOKEN="$2"; shift;;
             * ) if [[ "$branch" == "" ]]; then branch="$1"
@@ -57,7 +62,7 @@ status() {
         return 1
     fi
 
-    local repo="https://api.github.com/repos/$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO"
+    local repo="https://api.github.com/repos/$namespace"
     local get_status_response
     get_status_response=$(curl -s \
         -H "Accept: application/vnd.github.v3+json" \

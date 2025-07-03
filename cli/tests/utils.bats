@@ -34,11 +34,19 @@ setup() {
 setup_env() {
     get_github_account() {
         log_mock_call get_github_account "$@"
-        echo "app-account"
+        if [[ $(pwd) == "/code/folio" ]]; then
+            echo "app-account"
+        elif [[ $(pwd) == "/code" ]]; then
+            echo "cicd-account"
+        fi
     }
     get_github_repo() {
         log_mock_call get_github_repo "$@"
-        echo "app-repo"
+        if [[ $(pwd) == "/code/folio" ]]; then
+            echo "app-repo"
+        elif [[ $(pwd) == "/code" ]]; then
+            echo "cicd-repo"
+        fi
     }
 
     ENVIRONMENT="test"
@@ -79,6 +87,18 @@ teardown() {
     setup_env
     load_env
     assert_equal "$FOLIO_APP_REPO" "app-repo"
+}
+
+@test "loads CICD GitHub account" {
+    setup_env
+    load_env
+    assert_equal "$FOLIO_CICD_ACCOUNT" "cicd-account"
+}
+
+@test "loads CICD GitHub repository" {
+    setup_env
+    load_env
+    assert_equal "$FOLIO_CICD_REPO" "cicd-repo"
 }
 
 @test "uses environment variable" {

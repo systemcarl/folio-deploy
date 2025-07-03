@@ -69,6 +69,8 @@ setup() {
 
     FOLIO_APP_ACCOUNT="app-account"
     FOLIO_APP_REPO="app-repo"
+    FOLIO_CICD_ACCOUNT="cicd-account"
+    FOLIO_CICD_REPO="cicd-repo"
     FOLIO_GH_TOKEN="abc123"
 }
 
@@ -109,6 +111,14 @@ teardown() {
     assert_mock_called_once curl -s \
         -H "Accept: application/vnd.github.v3+json" \
         "$GITHUB/repos/app-account/app-repo/commits/test/statuses"
+}
+
+@test "fetches status from CI/CD repository" {
+    run status --self
+    assert_success
+    assert_mock_called_once curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        "$GITHUB/repos/cicd-account/cicd-repo/commits/main/statuses"
 }
 
 @test "fetches status with authorization header" {
@@ -206,7 +216,7 @@ teardown() {
         -d '{
             "state": "value",
             "context": "ci/folio-deploy",
-            "description": "Automated validation by CI."
+            "description": "Automated validation by cicd-repo CI."
         }'
 }
 
@@ -255,7 +265,20 @@ teardown() {
         -d '{
             "state": "value",
             "context": "ci/folio-deploy",
-            "description": "Automated validation by CI."
+            "description": "Automated validation by cicd-repo CI."
+        }'
+}
+
+@test "sets status of CI/CD repository" {
+    run status set --self value
+    assert_success
+    assert_mock_called_once curl -s -X POST \
+        -H "Accept: application/vnd.github.v3+json" \
+        "$GITHUB/repos/cicd-account/cicd-repo/statuses/abcd1234" \
+        -d '{
+            "state": "value",
+            "context": "ci/folio-deploy",
+            "description": "Automated self-validation."
         }'
 }
 

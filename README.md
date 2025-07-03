@@ -189,12 +189,15 @@ test --terraform
 ```
 
 ### Code Status
-The commit status of the `folio` application can be retrieved from *GitHub*. By
-default, the `status` script retrieves the status of the current head of the
-main branch. Alternatively, a branch, tag, or commit SHA can be specified as an
-argument to the script.
+The commit status of both the `folio` application and the `folio-deploy` CI/CD
+pipeline can be retrieved from *GitHub*. By default, the `status` script
+retrieves the status of the `folio` application's current head of the main
+branch. Alternatively, a branch, tag, or commit SHA as an argument to the
+script. To target the `folio-deploy` CI/CD pipeline, the `--self` option can be
+used.
 ```bash
-status [<branch_or_tag_or_sha>]
+status [<application_commit>]
+status --self [<pipeline_commit>]
 ```
 
 The commit status can be set manually using the `set` subcommand. The subcommand
@@ -202,7 +205,8 @@ requires a status argument, which can be one of `success`, `failure`, or
 `pending`. Optionally, the target commit can be specified before the status
 argument.
 ```bash
-status set [<target_commit>] <status>
+status set [<application_commit>] <status>
+status set --self [<pipeline_commit>] <status>
 ```
 
 The configured *GitHub* API token must have the scopes:
