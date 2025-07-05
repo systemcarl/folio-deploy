@@ -27,3 +27,11 @@ get_commit_ref() {
     local ref=$(git rev-parse --abbrev-ref HEAD) || return 1
     echo "$ref" | tr -d '\r'
 }
+
+compare_refs() {
+    local ref1=$(git rev-parse "$1" 2>/dev/null || echo "")
+    local ref2=$(git rev-parse "$2" 2>/dev/null || echo "")
+    if [[ -n "$ref1" ]] && [[ "$ref1" == "$ref2" ]]; then
+        return 1
+    fi
+}

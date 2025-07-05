@@ -10,6 +10,16 @@ setup() {
     setup_mocks
 
     mock npm
+    mock git
+
+    compare_refs() {
+        log_mock_call compare_refs "$@"
+        if [[ $(get_mock_state is_current_ref) == "true" ]]; then
+            return 1
+        fi
+    }
+
+    set_mock_state is_current_ref "true"
 }
 
 teardown() {
@@ -22,10 +32,77 @@ teardown() {
     assert_output --partial "All tests passed successfully."
 }
 
+@test "returns non-zero exit code if change directory fails" {
+    cd() { log_mock_call cd "$@"; return 1; }
+    run validate
+    assert_failure
+}
+
+@test "does not update version if change directory fails" {
+    set_mock_state is_current_ref "false"
+    cd() { log_mock_call cd "$@"; return 1; }
+    run validate branch
+    assert_failure
+    assert_mock_not_called git checkout
+}
+
+@test "does not update app version if already on reference commit" {
+    set_mock_state is_current_ref "true"
+    run validate branch
+    assert_success
+    assert_mock_not_called git checkout
+}
+
+@test "updates app version if not already on reference commit" {
+    set_mock_state is_current_ref "false"
+    run validate branch
+    assert_success
+    assert_mock_called_in_dir folio git checkout branch
+}
+
+@test "returns non-zero exit code if checkout fails" {
+    set_mock_state is_current_ref "false"
+    git() { log_mock_call git "$@"; return 1; }
+    run validate branch
+    assert_failure
+    assert_output --partial "Failed to checkout branch."
+}
+
+@test "restores previous app version on signal interruption" {
+    set_mock_state is_current_ref "false"
+    npm() { log_mock_call npm "$@"; kill -s SIGINT $BASHPID; }
+    run validate branch
+    assert_failure
+    assert_mock_called_in_dir folio git checkout -f -
+    assert_mocks_called_in_order \
+        git checkout branch -- \
+        git checkout -f -
+}
+
+@test "updates app version before installing dependencies" {
+    set_mock_state is_current_ref "false"
+    run validate branch
+    assert_success
+    assert_mocks_called_in_order \
+        git checkout branch -- \
+        npm install
+}
+
 @test "installs npm dependencies" {
     run validate
     assert_success
     assert_mock_called_in_dir folio npm install
+}
+
+@test "restores previous app version if install fails" {
+    set_mock_state is_current_ref "false"
+    npm() { log_mock_call npm "$@"; return 1; }
+    run validate branch
+    assert_failure
+    assert_mock_called_in_dir folio git checkout -f -
+    assert_mocks_called_in_order \
+        npm install -- \
+        git checkout -f -
 }
 
 @test "installs npm dependencies before testing" {
@@ -41,4 +118,14 @@ teardown() {
     assert_success
     assert_mock_called_once npm run test
     assert_mock_called_in_dir folio npm run test
+}
+
+@test "restores previous app version after tests" {
+    set_mock_state is_current_ref "false"
+    run validate branch
+    assert_success
+    assert_mock_called_in_dir folio git checkout -f -
+    assert_mocks_called_in_order \
+        npm run test -- \
+        git checkout -f -
 }

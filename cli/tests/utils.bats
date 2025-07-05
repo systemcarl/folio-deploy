@@ -26,12 +26,20 @@ setup() {
             echo $(get_mock_state remote_origin_url)
         elif [[ "$1" == "rev-parse" && "$2" == "--abbrev-ref" ]]; then
             echo $(get_mock_state abbrev_ref)
+        elif [[ "$1" == "rev-parse" && "$2" == $(get_mock_state ref_1) ]]; then
+            echo $(get_mock_state commit_sha_1)
+        elif [[ "$1" == "rev-parse" && "$2" == $(get_mock_state ref_2) ]]; then
+            echo $(get_mock_state commit_sha_2)
         fi
     }
 
     set_mock_state \
         remote_origin_url "https://github.com/app-account/app-repo.git"
     set_mock_state abbrev_ref "branch"
+    set_mock_state ref_1 "HEAD"
+    set_mock_state ref_2 "branch"
+    set_mock_state commit_sha_1 "abcd1234"
+    set_mock_state commit_sha_2 "abcd1234"
 }
 
 setup_env() {
@@ -348,4 +356,22 @@ teardown() {
     run get_commit_ref
     assert_success
     assert_output "branch"
+}
+
+@test "compares commits with different references" {
+    set_mock_state ref_1 "HEAD"
+    set_mock_state ref_2 "branch"
+    set_mock_state commit_sha_1 "abcd1234"
+    set_mock_state commit_sha_2 "1234abcd"
+    run compare_refs HEAD branch
+    assert_success
+}
+
+@test "compares commits with same references" {
+    set_mock_state ref_1 "HEAD"
+    set_mock_state ref_2 "branch"
+    set_mock_state commit_sha_1 "abcd1234"
+    set_mock_state commit_sha_2 "abcd1234"
+    run compare_refs HEAD branch
+    assert_failure
 }

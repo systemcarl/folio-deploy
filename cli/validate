@@ -1,9 +1,70 @@
+source "$(dirname ${BASH_SOURCE[0]})/utils/repo"
+
 validate() {
+    usage() {
+        echo "Usage:"
+        echo "  $0 [options]"
+        echo "  $0 [options] <ref>"
+        echo "Options:"
+        echo "  --help, -h          Show this help message."
+    }
+
+    local target=""
+    while [[ "$1" != "" ]]; do
+        case $1 in
+            --help | -h ) usage; return 0;;
+            * ) if [[ -z "$target" ]]; then target="$1";
+                else echo "Error: Too many arguments: $1"; return 1; fi;;
+        esac
+        shift
+    done
+
+    local wd=""
+    local needs_restore=false
+    restore() {
+        if [[ -z "$wd" ]]; then return 0; fi
+        if [[ "$needs_restore" == "false" ]]; then return 0; fi
+
+        echo
+        if [[ ! "$wd" =~ /folio$ ]]; then
+            echo "Error: Cannot restore outside of 'folio' directory."
+            echo "${wd} does not match */folio"
+            return 1
+        fi
+        cd "$wd" || return 1
+        git checkout -f -
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to restore previous state."
+            return 1
+        fi
+        cd ..
+
+        echo
+        echo "Application version restored successfully."
+    }
+    trap restore RETURN
+    trap 'return 1' SIGINT
+
     if [[ ! -d folio ]]; then
         echo "Error: 'folio' directory does not exist."
         return 1
     fi
-    cd folio
+    cd folio || return 1
+    wd=$(pwd)
+
+    if [[ -n "$target" ]]; then
+        if ! $(compare_refs "$target" HEAD); then
+            echo "Already on commit $target."
+        else
+            echo "Checking out commit $target..."
+            needs_restore=true
+            git checkout "$target"
+            if [[ $? -ne 0 ]]; then
+                echo "Failed to checkout $target."
+                return 1
+            fi
+        fi
+    fi
 
     npm install
     if [[ $? -ne 0 ]]; then
@@ -18,4 +79,5 @@ validate() {
         return 1
     fi
     echo "All tests passed successfully."
+    cd ..
 }
