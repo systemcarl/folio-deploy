@@ -21,6 +21,14 @@ setup() {
     }
     export -f docker
 
+    mock containerize
+
+    get_version() {
+        log_mock_call version "$@"
+        echo "1.2.3"
+    }
+    export -f get_version
+
     mock load_env
 
     export FOLIO_APP_ACCOUNT="app-account"
@@ -56,6 +64,30 @@ teardown() {
         "Application is running on http://localhost:3000"
 }
 
+@test "containerizes application locally" {
+    run deploy --local
+    assert_success
+    assert_mock_called_once containerize
+    assert_mock_not_called containerize --push
+}
+
+@test "returns non-zero exit code if local containerization fails" {
+    containerize() { log_mock_call containerize "$@"; return 1; }
+    run deploy --local
+    assert_failure
+}
+
+@test "containerizes application before deploying" {
+    run deploy --local
+    assert_success
+    assert_mocks_called_in_order \
+        containerize -- \
+        docker run -d \
+            --name "folio" \
+            -p "3000:3000" \
+            "app-repo:1.2.3"
+}
+
 @test "deploys local Docker image to local container" {
     set_mock_state has_image true
     run deploy --local
@@ -63,7 +95,7 @@ teardown() {
     assert_mock_called_once docker run -d \
         --name "folio" \
         -p "3000:3000" \
-        "app-repo:latest"
+        "app-repo:1.2.3"
 }
 
 @test "does not pull remote Docker image if local image exists" {
@@ -78,7 +110,7 @@ teardown() {
     run deploy  --local
     assert_success
     assert_mock_called_once docker pull \
-        "ghcr.io/app-account/app-repo:latest"
+        "ghcr.io/app-account/app-repo:1.2.3"
 }
 
 @test "pulls remote Docker image before deploying" {
@@ -86,11 +118,11 @@ teardown() {
     run deploy  --local
     assert_success
     assert_mocks_called_in_order \
-        docker pull "ghcr.io/app-account/app-repo:latest" -- \
+        docker pull "ghcr.io/app-account/app-repo:1.2.3" -- \
         docker run -d \
             --name "folio" \
             -p "3000:3000" \
-            "ghcr.io/app-account/app-repo:latest"
+            "ghcr.io/app-account/app-repo:1.2.3"
 }
 
 @test "deploys remote Docker image to local container" {
@@ -100,7 +132,7 @@ teardown() {
     assert_mock_called_once docker run -d \
         --name "folio" \
         -p "3000:3000" \
-        "ghcr.io/app-account/app-repo:latest"
+        "ghcr.io/app-account/app-repo:1.2.3"
 }
 
 @test "deploys remotely" {
@@ -212,6 +244,29 @@ teardown() {
     assert_output --partial "Deployment of production completed successfully."
 }
 
+@test "containerizes and publishes application" {
+    setup_remote_env
+    run deploy <<< "y"
+    assert_success
+    assert_mock_called_once containerize --push
+}
+
+@test "returns non-zero exit code if containerization fails" {
+    setup_remote_env
+    containerize() { log_mock_call containerize "$@"; return 1; }
+    run deploy <<< "y"
+    assert_failure
+}
+
+@test "containerizes application before applying Terraform plan" {
+    setup_remote_env
+    run deploy <<< "y"
+    assert_success
+    assert_mocks_called_in_order \
+        containerize --push -- \
+        terraform apply tfplan
+}
+
 @test "initializes Terraform" {
     setup_remote_env
     run deploy <<< "y"
@@ -254,6 +309,7 @@ teardown() {
     assert_mock_called_in_dir infra terraform plan \
         -out=tfplan \
         -var "environment=production" \
+        -var "app_version=1.2.3" \
         -var "namespace=app-account" \
         -var "domain=example.com" \
         -var "dns_zone=abc123" \
@@ -278,6 +334,7 @@ teardown() {
     assert_mock_called_in_dir infra terraform plan \
         -out=tfplan \
         -var "environment=production" \
+        -var "app_version=1.2.3" \
         -var "namespace=app-account" \
         -var "domain=example.com" \
         -var "dns_zone=abc123" \
@@ -295,6 +352,7 @@ teardown() {
     assert_mock_called_in_dir infra terraform plan \
         -out=tfplan \
         -var "environment=staging" \
+        -var "app_version=1.2.3" \
         -var "namespace=app-account" \
         -var "domain=example.com" \
         -var "dns_zone=abc123" \
