@@ -20,6 +20,11 @@ setup() {
         fi
     }
 
+    get_version() {
+        log_mock_call version "$@"
+        echo "1.2.3"
+    }
+
     mock load_env
 
     FOLIO_APP_ACCOUNT="app-account"
@@ -274,6 +279,7 @@ teardown() {
     assert_mock_called_once terraform -chdir=infra plan -destroy \
         -out=tfplan \
         -var "environment=production" \
+        -var "app_version=1.2.3" \
         -var "namespace=app-account" \
         -var "domain=example.com" \
         -var "dns_zone=abc123" \
@@ -300,6 +306,7 @@ teardown() {
     assert_mock_called_once terraform -chdir=infra plan -destroy \
         -out=tfplan \
         -var "environment=production" \
+        -var "app_version=1.2.3" \
         -var "namespace=app-account" \
         -var "domain=example.test" \
         -var "dns_zone=123abc" \
@@ -318,6 +325,7 @@ teardown() {
     assert_mock_called_once terraform -chdir=infra plan -destroy \
         -out=tfplan \
         -var "environment=staging" \
+        -var "app_version=1.2.3" \
         -var "namespace=app-account" \
         -var "domain=example.com" \
         -var "dns_zone=abc123" \

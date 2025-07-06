@@ -1,4 +1,6 @@
 source "$(dirname "${BASH_SOURCE[0]}")/utils/deployment"
+source "$(dirname "${BASH_SOURCE[0]}")/utils/package"
+source "$(dirname "${BASH_SOURCE[0]}")/containerize"
 
 deploy() {
     local loc
@@ -7,7 +9,16 @@ deploy() {
     loc=$(parse_local_arg "$@") || return 1
     approve=$(parse_approve_arg "$@") || return 1
 
+    local version=$(get_version folio)
+
     if [[ "$loc" = "false" ]]; then
+        containerize --push
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to build and push Docker image."
+            return 1
+        fi
+
+        echo
         echo "Initializing Terraform..."
 
         terraform -chdir=infra init -reconfigure \
@@ -20,6 +31,7 @@ deploy() {
         echo "Deploying to production environment..."
         terraform -chdir=infra plan -out=tfplan \
             -var "environment=$ENVIRONMENT" \
+            -var "app_version=$version" \
             -var "namespace=$FOLIO_APP_ACCOUNT" \
             -var "domain=$FOLIO_APP_DOMAIN" \
             -var "dns_zone=$FOLIO_CF_DNS_ZONE" \
@@ -57,20 +69,22 @@ deploy() {
         return 0
     fi
 
-    if docker image inspect "$FOLIO_APP_REPO:latest" > /dev/null 2>&1; then
+    containerize || return 1
+
+    if docker image inspect "$FOLIO_APP_REPO:$version" > /dev/null 2>&1; then
         docker run -d \
             --name folio \
             -p 3000:3000 \
-            "$FOLIO_APP_REPO:latest"
+            "$FOLIO_APP_REPO:$version"
     else
-        echo "Docker image '$FOLIO_APP_REPO:latest' not found locally."
-        echo "Pulling the latest image from GitHub Container Registry..."
+        echo "Docker image '$FOLIO_APP_REPO:$version' not found locally."
+        echo "Pulling the v$version image from GitHub Container Registry..."
         if [[ -z "$FOLIO_APP_ACCOUNT" ]]; then
             echo "Error: GitHub namespace is required to retrieve image."
             usage
             return 1
         fi
-        docker pull "ghcr.io/$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO:latest"
+        docker pull "ghcr.io/$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO:$version"
         if [[ $? -ne 0 ]]; then
             echo "Failed to pull Docker image from GitHub Container Registry."
             echo "Build the image locally with 'containerize' script."
@@ -79,7 +93,7 @@ deploy() {
         docker run -d \
             --name folio \
             -p 3000:3000 \
-            "ghcr.io/$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO:latest"
+            "ghcr.io/$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO:$version"
     fi
     if [[ $? -ne 0 ]]; then
         echo "Failed to start the application."
