@@ -1,4 +1,5 @@
 source "$(dirname "${BASH_SOURCE[0]}")/utils/deployment"
+source "$(dirname "${BASH_SOURCE[0]}")/utils/package"
 
 destroy() {
     local loc
@@ -6,6 +7,8 @@ destroy() {
     parse_environment_args "$@" || return 1
     loc=$(parse_local_arg "$@") || return 1
     approve=$(parse_approve_arg "$@") || return 1
+
+    local version=$(get_version folio)
 
     if [[ "$loc" = "false" ]]; then
         echo "Initializing Terraform..."
@@ -21,6 +24,7 @@ destroy() {
         echo "Destroying production environment..."
         terraform -chdir=infra plan -destroy -out=tfplan \
             -var "environment=$ENVIRONMENT" \
+            -var "app_version=$version" \
             -var "namespace=$FOLIO_APP_ACCOUNT" \
             -var "domain=$FOLIO_APP_DOMAIN" \
             -var "dns_zone=$FOLIO_CF_DNS_ZONE" \

@@ -10,12 +10,27 @@ setup() {
     setup_mocks
 
     mock npm
-    mock docker
+
+    docker() {
+        log_mock_call docker "$@"
+        if [[ "$1" == "image" && "$2" == "inspect" ]]; then
+            if [[ $(get_mock_state image_local) == "false" ]]; then
+                return 1
+            fi
+        elif [[ "$1" == "pull" ]]; then
+            if [[ $(get_mock_state "image_published") == "false" ]]; then
+                return 1
+            fi
+        fi
+    }
 
     get_version() {
         log_mock_call get_version "$@"
         echo "1.2.3"
     }
+
+    set_mock_state "image_local" "false"
+    set_mock_state "image_published" "false"
 
     mock load_env
 
@@ -44,11 +59,79 @@ teardown() {
     assert_mock_called_once get_version folio
 }
 
+@test "fetches local image" {
+    run containerize
+    assert_success
+    assert_mock_called_once docker image inspect \
+        "app-repo:1.2.3"
+}
+
+@test "doesn't rebuild if local image exists" {
+    set_mock_state "image_local" "true"
+    run containerize
+    assert_success
+    assert_output --partial \
+        "Docker image 'app-repo:1.2.3' already exists."
+    assert_mock_not_called npm install
+    assert_mock_not_called docker build
+}
+
+@test "fetches published image" {
+    set_mock_state "image_published" "true"
+    run containerize
+    assert_success
+    assert_mock_called_once docker pull \
+        "ghcr.io/app-account/app-repo:1.2.3"
+}
+
+@test "doesn't rebuild local image published" {
+    set_mock_state "image_published" "true"
+    run containerize
+    assert_success
+    assert_output --partial \
+        "Docker image 'ghcr.io/app-account/app-repo:1.2.3' already exists."
+    assert_mock_not_called npm install
+    assert_mock_not_called docker build
+}
+
+@test "does't publish image if already published" {
+    set_mock_state "image_published" "true"
+    run containerize --push
+    assert_success
+    assert_output --partial \
+        "Docker image 'ghcr.io/app-account/app-repo:1.2.3' already exists."
+    assert_mock_not_called docker push
+}
+
 @test "installs npm dependencies" {
     run containerize
     assert_success
     assert_mock_called_once npm install
     assert_mock_called_in_dir folio npm install
+}
+
+@test "rebuilds if local image exists" {
+    set_mock_state "image_local" "true"
+    run containerize --rebuild
+    assert_success
+    assert_mock_called_once npm install
+    assert_mock_called_once docker build
+}
+
+@test "rebuilds if local image published" {
+    set_mock_state "image_published" "true"
+    run containerize --rebuild
+    assert_success
+    assert_mock_called_once npm install
+    assert_mock_called_once docker build
+}
+
+@test "rebuilds and publishes if already published" {
+    set_mock_state "image_published" "true"
+    run containerize --rebuild --push
+    assert_success
+    assert_mock_called_once npm install
+    assert_mock_called_once docker build
 }
 
 @test "installs npm dependencies before testing" {
