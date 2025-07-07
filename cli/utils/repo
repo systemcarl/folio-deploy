@@ -22,3 +22,8 @@ get_github_repo() {
     if [[ "$repo" == "$url" ]]; then return 1; fi
     echo "${repo%.git}"
 }
+
+get_commit_ref() {
+    local ref=$(git rev-parse --abbrev-ref HEAD) || return 1
+    echo "$ref" | tr -d '\r'
+}
