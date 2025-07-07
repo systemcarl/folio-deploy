@@ -29,12 +29,14 @@ status() {
     local branch=""
     local status=""
     local description="Automated validation by $FOLIO_CICD_REPO CI."
+    local target_self=false
     while [[ "$1" != "" ]]; do
         case "$1" in
             --help | -h ) usage; exit 0;;
             --self )
                 namespace="$FOLIO_CICD_ACCOUNT/$FOLIO_CICD_REPO"
-                description="Automated self-validation.";;
+                description="Automated self-validation."
+                target_self=true;;
             --description ) description="$2"; shift;;
             --token ) FOLIO_GH_TOKEN="$2"; shift;;
             * ) if [[ "$branch" == "" ]]; then branch="$1"
@@ -54,7 +56,15 @@ status() {
         status=$(echo $branch)
         branch=""
     fi
-    if [[ -z "$branch" ]]; then branch="main"; fi
+    if [[ -z "$branch" ]]; then
+        if [[ "$target_self" == "false" ]]; then cd folio || return 1; fi
+        branch=$(get_commit_ref)
+        if [[ $? -ne 0 ]] || [[ -z "$branch" ]]; then
+            echo "Error: Failed to get current branch reference."
+            return 1
+        fi
+        if [[ "target_self" == "false" ]]; then cd .. || return 1; fi
+    fi
 
     if [[ -z "$FOLIO_GH_TOKEN" ]]; then
         echo "Error: GitHub API token required for status check."
