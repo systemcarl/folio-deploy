@@ -4,9 +4,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/utils/package"
 destroy() {
     local loc
     local approve
+
     parse_environment_args "$@" || return 1
-    loc=$(parse_local_arg "$@") || return 1
-    approve=$(parse_approve_arg "$@") || return 1
+
+    loc=$(parse_flag "--local" "$@") || return 1
+    approve=$(parse_flag "--approve" "$@") || return 1
 
     local version=$(get_version folio)
 
