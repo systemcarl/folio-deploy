@@ -2,20 +2,60 @@ source "$(dirname "${BASH_SOURCE[0]}")/utils/deployment"
 source "$(dirname "${BASH_SOURCE[0]}")/utils/package"
 source "$(dirname "${BASH_SOURCE[0]}")/containerize"
 source "$(dirname "${BASH_SOURCE[0]}")/smoke"
+source "$(dirname "${BASH_SOURCE[0]}")/status"
 
 deploy() {
     local loc
     local approve
+    local set_status
+    local force
+
     parse_environment_args "$@" || return 1
-    loc=$(parse_local_arg "$@") || return 1
-    approve=$(parse_approve_arg "$@") || return 1
+
+    loc=$(parse_flag "--local" "$@") || return 1
+    approve=$(parse_flag "--approve" "$@") || return 1
+    set_status=$(parse_flag "--set-status" "$@") || return 1
+    force=$(parse_flag "--force|-f" "$@") || return 1
 
     local version=$(get_version folio)
+
+    if [[ "$set_status" == "true" ]]; then
+        local status=$(status --self --context "cd/$FOLIO_CICD_REPO")
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to retrieve current commit status."
+            return 1
+        fi
+
+        if [[ "$status" != "none" ]]; then
+            echo "Deployment already in progress."
+            if [[ "$force" != "true" ]]; then
+                echo "Aborting deployment to avoid concurrent deployments."
+                return 1
+            fi
+            echo "Forcing deployment despite existing status."
+        fi
+    fi
+
+    update_status() {
+        if [[ "$set_status" == "false" ]]; then return 0; fi
+        local deployment_msg="Deployment of $ENVIRONMENT to $FOLIO_APP_DOMAIN"
+        status set --self "$1" \
+            --context "cd/$FOLIO_CICD_REPO" \
+            --description "$deployment_msg $2."
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to update commit status: $1."
+            return 1
+        fi
+        echo "Commit status updated to: $1."
+    }
+
+    update_status "pending" "started" || return 1
 
     if [[ "$loc" = "false" ]]; then
         containerize --push
         if [[ $? -ne 0 ]]; then
             echo "Failed to build and push Docker image."
+            update_status "failure" "failed to build and push image"
             return 1
         fi
 
@@ -26,6 +66,7 @@ deploy() {
             -backend-config="prefix=$ENVIRONMENT"
         if [[ $? -ne 0 ]]; then
             echo "Failed to initialize Terraform."
+            update_status "failure" "failed to initialize environment"
             return 1
         fi
 
@@ -44,6 +85,7 @@ deploy() {
             -var "do_token=$FOLIO_DO_TOKEN"
         if [[ $? -ne 0 ]]; then
             echo "Failed to create Terraform plan."
+            update_status "failure" "failed to resolve required resources"
             return 1
         fi
 
@@ -53,6 +95,7 @@ deploy() {
             if [[ ! "$response" =~ ^[Yy]$ ]]; then
                 echo
                 echo "Deployment aborted."
+                update_status "pending" "aborted by user"
                 return 0
             fi
         fi
@@ -61,6 +104,7 @@ deploy() {
         terraform -chdir=infra apply tfplan
         if [[ $? -ne 0 ]]; then
             echo "Failed to apply Terraform plan."
+            update_status "failure" "failed to provision resources"
             return 1
         fi
 
@@ -68,10 +112,15 @@ deploy() {
         echo "Application is running at https://$FOLIO_APP_DOMAIN"
 
         echo
-        smoke --domain "$FOLIO_APP_DOMAIN" || return 1
+        smoke --domain "$FOLIO_APP_DOMAIN"
+        if [[ $? -ne 0 ]]; then
+            update_status "failure" "failed smoke test"
+            return 1
+        fi
 
         echo
         echo "Deployment of $ENVIRONMENT completed successfully."
+        update_status "success" "deployed successfully" || return 1
         return 0
     fi
 
