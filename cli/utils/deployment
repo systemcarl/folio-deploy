@@ -6,6 +6,8 @@ deployment_usage() {
     echo "  --local         Target the local environment"
     echo "  --staging       Deploy with staging configuration"
     echo "  --approve       Automatically approve changes"
+    echo "  --set-status    Set the deployment commit status of CI/CD pipeline"
+    echo "  --force, -f     Force deployment even if status is already set"
     echo "  --domain        Specify the domain for the application"
     echo "  --dns-zone      Specify the Cloudflare zone for DNS records"
     echo "  --ssh-port      Specify the SSH port for the server"
@@ -15,6 +17,7 @@ deployment_usage() {
     echo "  --gcs-creds     Specify the Google Cloud Service credentials file"
     echo "  --cf-token      Specify the Cloudflare API token"
     echo "  --do-token      Specify the DigitalOcean API token"
+    echo "  --gh-token      Specify the GitHub API token"
     echo "  --help, -h      Show this help message"
     echo "Environment variables:"
     echo "  ENVIRONMENT             Deployment configuration."
@@ -28,18 +31,22 @@ deployment_usage() {
     echo "  FOLIO_GCS_CREDENTIALS   Path to Google Cloud Service credentials."
     echo "  FOLIO_CF_TOKEN          Cloudflare API token."
     echo "  FOLIO_DO_TOKEN          DigitalOcean API token."
+    echo "  FOLIO_GH_TOKEN          GitHub API token."
 }
 
 parse_environment_args() {
     load_env
 
     local loc=false
+    local set_status=false
     while [[ "$1" != "" ]]; do
         case "$1" in
             --help | -h ) deployment_usage; return 0;;
             --local ) loc=true;;
             --staging ) ENVIRONMENT="staging";;
             --approve ) ;;
+            --set-status ) set_status=true;;
+            --force | -f ) ;;
             --domain ) FOLIO_APP_DOMAIN="$2"; shift;;
             --dns-zone ) FOLIO_CF_DNS_ZONE="$2"; shift;;
             --ssh-port ) FOLIO_SSH_PORT="$2"; shift;;
@@ -49,10 +56,17 @@ parse_environment_args() {
             --gcs-creds ) GOOGLE_CREDENTIALS="$2"; shift;;
             --cf-token ) FOLIO_CF_TOKEN="$2"; shift;;
             --do-token ) FOLIO_DO_TOKEN="$2"; shift;;
+            --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
             * ) echo "Unknown option: $1"; deployment_usage; return 1;;
         esac
         shift
     done
+
+    if [[ "$loc" == "true" ]] && [[ "$set_status" == "true" ]]; then
+        echo "Error: Cannot set status for local deployments."
+        deployment_usage
+        return 1
+    fi
 
     if [[ "$loc" == "false" ]]; then
         if [[ -z "$FOLIO_APP_DOMAIN" ]]; then
@@ -95,6 +109,11 @@ parse_environment_args() {
             deployment_usage
             return 1
         fi
+        if [[ "$set_status" == "true" ]] && [[ -z "$FOLIO_GH_TOKEN" ]]; then
+            echo "Error: GitHub token required to set deployment commit status."
+            deployment_usage
+            return 1
+        fi
 
         if ! command -v terraform &> /dev/null; then
             echo "Error: Terraform is not installed."
@@ -110,21 +129,16 @@ parse_environment_args() {
     export FOLIO_DO_TOKEN
 }
 
-parse_local_arg() {
+parse_flag() {
+    local args=$1; shift
+    IFS='|' read -ra arg_list <<< "$args"
     while [[ "$1" != "" ]]; do
-        case "$1" in
-            --local ) echo true; return 0;;
-        esac
-        shift
-    done
-    echo false
-}
-
-parse_approve_arg() {
-    while [[ "$1" != "" ]]; do
-        case "$1" in
-            --approve ) echo true; return 0;;
-        esac
+        for arg in "${arg_list[@]}"; do
+            case "$1" in
+                "$arg" ) echo true; return 0;;
+                * ) ;;
+            esac
+        done
         shift
     done
     echo false

@@ -21,6 +21,7 @@ setup() {
     }
 
     mock containerize
+    mock status
     mock smoke
 
     get_version() {
@@ -32,6 +33,7 @@ setup() {
 
     FOLIO_APP_ACCOUNT="app-account"
     FOLIO_APP_REPO="app-repo"
+    FOLIO_CICD_REPO="cicd-repo"
 }
 
 setup_remote_env() {
@@ -45,6 +47,7 @@ setup_remote_env() {
     FOLIO_PUBLIC_KEY_FILE="/path/to/public_key.pub"
     FOLIO_CF_TOKEN="cf_token"
     FOLIO_DO_TOKEN="do_token"
+    FOLIO_GH_TOKEN="gh_token"
 }
 
 teardown() {
@@ -62,6 +65,14 @@ teardown() {
     run deploy --local
     assert_success
     assert_mock_called_once load_env
+}
+
+@test "refuses to set status of local deployment" {
+    run deploy --local --set-status
+    assert_failure
+    assert_output --partial \
+        "Error: Cannot set status for local deployments."
+    assert_mock_not_called status
 }
 
 @test "containerizes application locally" {
@@ -265,6 +276,23 @@ teardown() {
         "Error: DigitalOcean token required for non-local deployment."
 }
 
+@test "does not require GitHub API token" {
+    setup_remote_env
+    unset FOLIO_GH_TOKEN
+    run deploy <<< "y"
+    assert_success
+    assert_output --partial "Deployment of production completed successfully."
+}
+
+@test "requires GitHub API token to update commit status" {
+    setup_remote_env
+    unset FOLIO_GH_TOKEN
+    run deploy <<< "y" --set-status
+    assert_failure
+    assert_output --partial \
+        "Error: GitHub token required to set deployment commit status."
+}
+
 @test "accepts domain as option" {
     setup_remote_env
     unset FOLIO_APP_DOMAIN
@@ -329,6 +357,68 @@ teardown() {
     assert_output --partial "Deployment of production completed successfully."
 }
 
+@test "accepts GitHub API token as option" {
+    setup_remote_env
+    unset FOLIO_GH_TOKEN
+    run deploy <<< "y" --gh-token "gh_token"
+    assert_success
+    assert_output --partial "Deployment of production completed successfully."
+}
+
+@test "does not set commit status" {
+    setup_remote_env
+    run deploy <<< "y"
+    assert_success
+    assert_mock_not_called status
+}
+
+@test "refuses to deploy if commit status already set" {
+    setup_remote_env
+    status() { log_mock_call status "$@"; echo "pending"; }
+    run deploy <<< "y" --set-status
+    assert_failure
+    assert_output --partial \
+        "Deployment already in progress."
+    assert_mock_not_called status set
+}
+
+@test "forces deployment (--force) if commit status already set" {
+    setup_remote_env
+    status() { log_mock_call status "$@"; echo "pending"; }
+    run deploy <<< "y" --set-status --force
+    assert_success
+    assert_mock_called_once status set --self pending
+}
+
+@test "forces deployment (-f) if commit status already set" {
+    setup_remote_env
+    status() { log_mock_call status "$@"; echo "pending"; }
+    run deploy <<< "y" --set-status -f
+    assert_success
+    assert_mock_called_once status set --self pending
+}
+
+@test "sets commit status to 'pending'" {
+    setup_remote_env
+    run deploy <<< "y" --set-status
+    assert_success
+    assert_mock_called_once status set --self pending \
+        --context "cd/cicd-repo" \
+        --description "Deployment of production to example.com started."
+}
+
+@test "sets commit status to 'pending' before containerizing application" {
+    setup_remote_env
+    run deploy <<< "y" --set-status
+    assert_success
+    assert_mocks_called_in_order \
+        status set --self pending \
+            --context "cd/cicd-repo" \
+            --description "Deployment of production to example.com started." \
+                -- \
+        containerize --push
+}
+
 @test "containerizes and publishes application" {
     setup_remote_env
     run deploy <<< "y"
@@ -341,6 +431,17 @@ teardown() {
     containerize() { log_mock_call containerize "$@"; return 1; }
     run deploy <<< "y"
     assert_failure
+}
+
+@test "sets commit status to 'failure' after failing to containerize app" {
+    setup_remote_env
+    containerize() { log_mock_call containerize "$@"; return 1; }
+    run deploy <<< "y" --set-status
+    assert_failure
+    assert_mock_called_once status set --self failure \
+        --context "cd/cicd-repo" \
+        --description "Deployment of production to example.com failed to \
+            build and push image."
 }
 
 @test "containerizes application before applying Terraform plan" {
@@ -369,6 +470,17 @@ teardown() {
     assert_mock_called_once terraform -chdir=infra init \
         -reconfigure \
         -backend-config="prefix=staging"
+}
+
+@test "sets commit status to 'failure' after failing to initialize Terraform" {
+    setup_remote_env
+    terraform() { log_mock_call terraform "$@"; return 1; }
+    run deploy <<< "y" --set-status
+    assert_failure
+    assert_mock_called_once status set --self failure \
+        --context "cd/cicd-repo" \
+        --description "Deployment of production to example.com failed to \
+            initialize environment."
 }
 
 @test "initializes Terraform before creating plan" {
@@ -451,6 +563,20 @@ teardown() {
         -var "do_token=do_token"
 }
 
+@test "sets commit status to 'failure' after failing to create Terraform plan" {
+    setup_remote_env
+    terraform() {
+        log_mock_call terraform "$@";
+        if [[ " $* " == *" plan "* ]]; then return 1; fi
+    }
+    run deploy <<< "y" --set-status
+    assert_failure
+    assert_mock_called_once status set --self failure \
+        --context "cd/cicd-repo" \
+        --description "Deployment of production to example.com failed to \
+            resolve required resources."
+}
+
 @test "creates Terraform plan before applying" {
     setup_remote_env
     run deploy <<< "y"
@@ -482,6 +608,29 @@ teardown() {
     assert_mock_called_once terraform -chdir=infra apply tfplan
 }
 
+@test "sets commit status to 'pending' after plan aborted" {
+    setup_remote_env
+    run deploy <<< "n" --set-status
+    assert_success
+    assert_mock_called_once status set --self pending \
+        --context "cd/cicd-repo" \
+        --description "Deployment of production to example.com aborted by user."
+}
+
+@test "sets commit status to 'failure' after failing to apply Terraform plan" {
+    setup_remote_env
+    terraform() {
+        log_mock_call terraform "$@";
+        if [[ " $* " == *" apply "* ]]; then return 1; fi
+    }
+    run deploy <<< "y" --set-status
+    assert_failure
+    assert_mock_called_once status set --self failure \
+        --context "cd/cicd-repo" \
+        --description "Deployment of production to example.com failed to \
+            provision resources."
+}
+
 @test "smoke tests remote deployment" {
     setup_remote_env
     run deploy <<< "y"
@@ -494,4 +643,25 @@ teardown() {
     smoke() { log_mock_call smoke $@; return 1; }
     run deploy <<< "y"
     assert_failure
+}
+
+@test "sets commit status to 'failure' after failed smoke test" {
+    setup_remote_env
+    smoke() { log_mock_call smoke $@; return 1; }
+    run deploy <<< "y" --set-status
+    assert_failure
+    assert_mock_called_once status set --self failure \
+        --context "cd/cicd-repo" \
+        --description "Deployment of production to example.com failed smoke \
+            test."
+}
+
+@test "sets commit status to 'success' after successful deployment" {
+    setup_remote_env
+    run deploy <<< "y" --set-status
+    assert_success
+    assert_mock_called_once status set --self success \
+        --context "cd/cicd-repo" \
+        --description "Deployment of production to example.com deployed \
+            successfully."
 }
