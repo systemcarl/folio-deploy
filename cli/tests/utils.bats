@@ -24,11 +24,14 @@ setup() {
         log_mock_call git "$@"
         if [[ "$1" == "remote" && "$2" == "get-url" && "$3" == "origin" ]]; then
             echo $(get_mock_state remote_origin_url)
+        elif [[ "$1" == "rev-parse" && "$2" == "--abbrev-ref" ]]; then
+            echo $(get_mock_state abbrev_ref)
         fi
     }
 
     set_mock_state \
         remote_origin_url "https://github.com/app-account/app-repo.git"
+    set_mock_state abbrev_ref "branch"
 }
 
 setup_env() {
@@ -338,4 +341,11 @@ teardown() {
     run get_github_repo
     assert_success
     assert_output "app-repo"
+}
+
+@test "gets current commit reference" {
+    set_mock_state abbrev_ref "branch"
+    run get_commit_ref
+    assert_success
+    assert_output "branch"
 }

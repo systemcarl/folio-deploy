@@ -50,6 +50,11 @@ setup() {
         echo $(get_mock_state "find_context_result")
     }
 
+    get_commit_ref() {
+        log_mock_call get_commit_ref "$@"
+        echo $(get_mock_state abbrev_ref)
+    }
+
     set_mock_state get_response \
         '[{"context": "ci/folio-deploy", "state": "pending"}]'
     set_mock_state post_response \
@@ -64,6 +69,8 @@ setup() {
     set_mock_state query_post_response_state_result "success"
     set_mock_state find_context_result \
         '[{"context": "ci/folio-deploy", "state": "pending"}]'
+
+    set_mock_state abbrev_ref "main"
 
     mock load_env
 
@@ -97,7 +104,7 @@ teardown() {
     assert_success
 }
 
-@test "fetches main status from GitHub API" {
+@test "fetches status from GitHub API" {
     run status
     assert_success
     assert_mock_called_once curl -s \
@@ -113,12 +120,34 @@ teardown() {
         "$GITHUB/repos/app-account/app-repo/commits/test/statuses"
 }
 
+@test "fetches current commit status from GitHub API" {
+    set_mock_state abbrev_ref "abcd1234"
+    run status
+    assert_success
+    assert_mock_called_once get_commit_ref
+    assert_mock_called_in_dir "folio" get_commit_ref
+    assert_mock_called_once curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        "$GITHUB/repos/app-account/app-repo/commits/abcd1234/statuses"
+}
+
 @test "fetches status from CI/CD repository" {
     run status --self
     assert_success
     assert_mock_called_once curl -s \
         -H "Accept: application/vnd.github.v3+json" \
         "$GITHUB/repos/cicd-account/cicd-repo/commits/main/statuses"
+}
+
+@test "fetches current commit status from CI/CD repository" {
+    set_mock_state abbrev_ref "abcd1234"
+    run status --self
+    assert_success
+    assert_mock_called_once get_commit_ref
+    assert_mock_called_in_dir "" get_commit_ref
+    assert_mock_called_once curl -s \
+        -H "Accept: application/vnd.github.v3+json" \
+        "$GITHUB/repos/cicd-account/cicd-repo/commits/abcd1234/statuses"
 }
 
 @test "fetches status with authorization header" {
