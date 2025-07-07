@@ -1,3 +1,4 @@
+source "$(dirname "${BASH_SOURCE[0]}")/utils/environment"
 source "$(dirname ${BASH_SOURCE[0]})/utils/repo"
 
 validate() {
@@ -6,18 +7,36 @@ validate() {
         echo "  $0 [options]"
         echo "  $0 [options] <ref>"
         echo "Options:"
-        echo "  --help, -h          Show this help message."
+        echo "  --set-status    Set the commit status of application."
+        echo "  --force, -f     Force validation even if status already set."
+        echo "  --gh-token      Specify the GitHub API token."
+        echo "  --help, -h      Show this help message."
+        echo "Environment variables:"
+        echo "  FOLIO_GH_TOKEN      GitHub API token."
     }
 
+    load_env
+
     local target=""
+    local set_status=false
+    local force=false
     while [[ "$1" != "" ]]; do
         case $1 in
             --help | -h ) usage; return 0;;
+            --set-status ) set_status=true;;
+            --force | -f ) force=true;;
+            --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
             * ) if [[ -z "$target" ]]; then target="$1";
                 else echo "Error: Too many arguments: $1"; return 1; fi;;
         esac
         shift
     done
+
+    if [[ "$set_status" == "true" ]] && [[ -z "$FOLIO_GH_TOKEN" ]]; then
+        echo "Error: GitHub token required to set commit status."
+        usage
+        return 1
+    fi
 
     local wd=""
     local needs_restore=false
@@ -45,6 +64,16 @@ validate() {
     trap restore RETURN
     trap 'return 1' SIGINT
 
+    update_status() {
+        if [[ "$set_status" == "false" ]]; then return 0; fi
+        status set "$target" "$1" --description "Validation $2."
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to update commit status."
+            return 1
+        fi
+        echo "Commit status updated to: $1."
+    }
+
     if [[ ! -d folio ]]; then
         echo "Error: 'folio' directory does not exist."
         return 1
@@ -66,9 +95,28 @@ validate() {
         fi
     fi
 
+    if [[ "$set_status" == "true" ]]; then
+        local status=$(status $target)
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to retrieve commit status."
+            return 1
+        fi
+        if [[ "$status" != "none" ]]; then
+            echo "Commit previously validated: $status."
+            if [[ "$force" != "true" ]]; then
+                echo "Aborting validation to avoid concurrent validations."
+                return 1
+            fi
+            echo "Forcing validation despite existing status."
+        fi
+    fi
+
+    update_status "pending" "started" || return 1
+
     npm install
     if [[ $? -ne 0 ]]; then
         echo "Failed to install dependencies."
+        update_status "failure" "failed to install dependencies"
         return 1
     fi
     echo "Dependencies installed successfully."
@@ -76,8 +124,10 @@ validate() {
     npm run test
     if [[ $? -ne 0 ]]; then
         echo "Tests failed."
+        update_status "failure" "tests failed"
         return 1
     fi
     echo "All tests passed successfully."
+    update_status "success" "tests passed" || return 1
     cd ..
 }

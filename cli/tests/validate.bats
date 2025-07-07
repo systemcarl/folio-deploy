@@ -12,6 +12,8 @@ setup() {
     mock npm
     mock git
 
+    status() { log_mock_call status "$@"; echo "none"; }
+
     compare_refs() {
         log_mock_call compare_refs "$@"
         if [[ $(get_mock_state is_current_ref) == "true" ]]; then
@@ -20,6 +22,10 @@ setup() {
     }
 
     set_mock_state is_current_ref "true"
+
+    mock load_env
+
+    FOLIO_GH_TOKEN="gh_token"
 }
 
 teardown() {
@@ -36,6 +42,69 @@ teardown() {
     cd() { log_mock_call cd "$@"; return 1; }
     run validate
     assert_failure
+}
+
+@test "does not require GitHub token" {
+    unset FOLIO_GH_TOKEN
+    run validate
+    assert_success
+}
+
+@test "requires GitHub token to update commit status" {
+    unset FOLIO_GH_TOKEN
+    run validate --set-status
+    assert_failure
+    assert_output --partial "GitHub token required to set commit status."
+}
+
+@test "does not set commit status" {
+    run validate
+    assert_success
+    assert_mock_not_called status
+}
+
+@test "refuses to validate if commit status already set" {
+    status() { log_mock_call status "$@"; echo "pending"; }
+    run validate --set-status
+    assert_failure
+    assert_output --partial "Commit previously validated: pending."
+    assert_mock_not_called status set
+}
+
+@test "forces validation (--force) if commit status already set" {
+    status() { log_mock_call status "$@"; echo "pending"; }
+    run validate --set-status --force
+    assert_success
+    assert_mock_called_once status set pending
+}
+
+@test "forces validation (-f) if commit status already set" {
+    status() { log_mock_call status "$@"; echo "pending"; }
+    run validate --set-status -f
+    assert_success
+    assert_mock_called_once status set pending
+}
+
+@test "sets commit status to 'pending'" {
+    run validate --set-status
+    assert_success
+    assert_mock_called_once status set pending \
+        --description "Validation started."
+}
+
+@test "sets target commit status to 'pending'" {
+    run validate --set-status branch
+    assert_success
+    assert_mock_called_once status set branch pending \
+        --description "Validation started."
+}
+
+@test "sets commit status to 'pending' before installing dependencies" {
+    run validate --set-status branch
+    assert_success
+    assert_mocks_called_in_order \
+        status set branch pending --description "Validation started." -- \
+        npm install
 }
 
 @test "does not update version if change directory fails" {
@@ -94,6 +163,14 @@ teardown() {
     assert_mock_called_in_dir folio npm install
 }
 
+@test "sets commit status to 'failure' after failing to install dependencies" {
+    npm() { log_mock_call npm "$@"; return 1; }
+    run validate --set-status branch
+    assert_failure
+    assert_mock_called_once status set branch failure \
+        --description "Validation failed to install dependencies."
+}
+
 @test "restores previous app version if install fails" {
     set_mock_state is_current_ref "false"
     npm() { log_mock_call npm "$@"; return 1; }
@@ -118,6 +195,24 @@ teardown() {
     assert_success
     assert_mock_called_once npm run test
     assert_mock_called_in_dir folio npm run test
+}
+
+@test "sets commit status to 'failure' after failing tests" {
+    npm() {
+        log_mock_call npm "$@";
+        if [[ "$1" == "run" && "$2" == "test" ]]; then return 1; fi
+    }
+    run validate --set-status branch
+    assert_failure
+    assert_mock_called_once status set branch failure \
+        --description "Validation tests failed."
+}
+
+@test "sets commit status to 'success' after passing tests" {
+    run validate --set-status branch
+    assert_success
+    assert_mock_called_once status set branch success \
+        --description "Validation tests passed."
 }
 
 @test "restores previous app version after tests" {
