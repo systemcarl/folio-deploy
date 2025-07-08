@@ -15,6 +15,7 @@ setup() {
     mock destroy
     mock status
     mock validate
+    mock smoke
 }
 
 teardown() {
@@ -218,5 +219,45 @@ teardown() {
 @test "validate script exits with validate function non-zero status" {
     validate() { return 1; }
     run ./validate
+    assert_failure
+}
+
+@test "smoke script changes working directory to project root" {
+    run ./smoke
+    assert_success
+    assert_mock_called_once cd "/code"
+}
+
+@test "smoke script changes working directory before sourcing" {
+    run ./smoke
+    assert_success
+    assert_mocks_called_in_order \
+        cd "/code" -- \
+        source "./cli/smoke"
+}
+
+@test "smoke script sources the smoke file" {
+    run ./smoke
+    assert_success
+    assert_mock_called_once source "./cli/smoke"
+}
+
+@test "smoke script sources before calling smoke function" {
+    run ./smoke
+    assert_success
+    assert_mocks_called_in_order \
+        source "./cli/smoke" -- \
+        smoke
+}
+
+@test "smoke script passes arguments to smoke function" {
+    run ./smoke --arg1 value1 --arg2 value2
+    assert_success
+    assert_mock_called_once smoke --arg1 value1 --arg2 value2
+}
+
+@test "smoke script exits with smoke function non-zero status" {
+    smoke() { return 1; }
+    run ./smoke
     assert_failure
 }

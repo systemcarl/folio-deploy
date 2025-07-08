@@ -1,0 +1,56 @@
+source "$(dirname "${BASH_SOURCE[0]}")/utils/environment"
+
+smoke() {
+    usage() {
+        echo "Usage: $0 [options]"
+        echo "Options:"
+        echo "  --domain      Specify the domain hosing the application to test"
+        echo "  --insecure    Tests via HTTP instead of HTTPS"
+        echo "  --help, -h    Show this help message"
+        echo "Environment variables:"
+        echo "  FOLIO_APP_DOMAIN    Domain hosting the application to test"
+    }
+
+    load_env
+
+    local insecure=false
+    while [[ "$1" != "" ]]; do
+        case "$1" in
+            --help | -h ) usage; return 0;;
+            --domain ) FOLIO_APP_DOMAIN="$2"; shift;;
+            --insecure ) insecure=true;;
+            * ) echo "Unknown option: $1"; usage; return 1;;
+        esac
+        shift
+    done
+
+    local protocol="https"
+    if [[ "$insecure" == "true" ]]; then
+        protocol="http"
+    fi
+
+    echo "Testing connection to the application at:"
+    echo "$protocol://${FOLIO_APP_DOMAIN}/"
+    local success=false
+    local response_status=0
+    for i in {1..600}; do
+        response_status=$(curl -s -o /dev/null -w "%{http_code}" \
+            "$protocol://${FOLIO_APP_DOMAIN}/")
+        if [[ "$response_status" == "200" ]]; then
+            success=true
+            echo
+            break
+        fi
+        printf "\rConnection failed, retrying... (%d)" "$i"
+        sleep 1 || break
+    done
+    if [[ "$success" != "true" ]]; then
+        echo
+        echo "Failed to connect to application."
+        return 1
+    fi
+
+    echo
+    echo "Successfully connected to application."
+}
+
