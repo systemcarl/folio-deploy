@@ -1,6 +1,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/utils/deployment"
 source "$(dirname "${BASH_SOURCE[0]}")/utils/package"
 source "$(dirname "${BASH_SOURCE[0]}")/containerize"
+source "$(dirname "${BASH_SOURCE[0]}")/smoke"
 
 deploy() {
     local loc
@@ -65,6 +66,11 @@ deploy() {
 
         echo
         echo "Application is running at https://$FOLIO_APP_DOMAIN"
+
+        echo
+        smoke --domain "$FOLIO_APP_DOMAIN" || return 1
+
+        echo
         echo "Deployment of $ENVIRONMENT completed successfully."
         return 0
     fi
@@ -100,4 +106,7 @@ deploy() {
         return 1
     fi
     echo "Application is running on http://localhost:3000"
+
+    echo
+    smoke --insecure --domain "localhost:3000" || return 1
 }
