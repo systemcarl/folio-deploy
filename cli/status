@@ -9,6 +9,7 @@ status() {
         echo "   $0 set [options] [branch] [status]"
         echo "Options:"
         echo "  --self              Target the current repository"
+        echo "  --context           Specify the status context"
         echo "  --description       Specify the status description"
         echo "  --token             Specify the GitHub API token"
         echo "  --help, -h          Show this help message"
@@ -28,6 +29,7 @@ status() {
     local namespace="$FOLIO_APP_ACCOUNT/$FOLIO_APP_REPO"
     local branch=""
     local status=""
+    local context="ci/$FOLIO_CICD_REPO"
     local description="Automated validation by $FOLIO_CICD_REPO CI."
     local target_self=false
     while [[ "$1" != "" ]]; do
@@ -37,6 +39,7 @@ status() {
                 namespace="$FOLIO_CICD_ACCOUNT/$FOLIO_CICD_REPO"
                 description="Automated self-validation."
                 target_self=true;;
+            --context ) context="$2"; shift;;
             --description ) description="$2"; shift;;
             --token ) FOLIO_GH_TOKEN="$2"; shift;;
             * ) if [[ "$branch" == "" ]]; then branch="$1"
@@ -93,8 +96,7 @@ status() {
     fi
 
     local commit_status
-    commit_status=$(find_json -l "$get_status_response" \
-        "context" "ci/folio-deploy")
+    commit_status=$(find_json -l "$get_status_response" "context" "$context")
     if [[ $? -ne 0 ]]; then
         echo "Error: Failed to find commit status in response from GitHub API"
         echo $get_status_response
@@ -157,7 +159,7 @@ status() {
         "$repo/statuses/$sha" \
         -d '{
             "state": "'"$status"'",
-            "context": "ci/folio-deploy",
+            "context": "'"$context"'",
             "description": "'"$description"'"
         }')
     if [[ $? -ne 0 ]]; then
