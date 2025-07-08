@@ -108,6 +108,17 @@ deploy --approve
 Remote deployment requires that the requested `folio` *Docker* image version is
 available on *GitHub Packages*.
 
+#### Staging
+To avoid exposing potentially unstable code or hitting rate limits during
+testing, the `--staging` option can be used to deploy the application to a
+staging environment.
+```bash
+deploy --staging
+```
+
+When staging, a staging SSL certificate will be issued by *Let's Encrypt*,
+instead of a production certificate.
+
 ### Local Deployment
 If the `--local` option is used, the script will attempt to run the application
 on a local container, exposing port 3000. The latest image will be pull from the

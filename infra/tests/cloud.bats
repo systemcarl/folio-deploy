@@ -54,6 +54,7 @@ setup() {
     mock ufw
 
     VERSION_CODENAME="codename"
+    environment="production"
     app_package="app-package"
     hostname="example.com"
     ssh_port="2222"
@@ -204,6 +205,22 @@ teardown() {
         } \
           \
         example.com { \
+            reverse_proxy folio:3000 \
+        }"
+}
+
+@test "configures Caddy with staging ACME server" {
+    environment="staging"
+    acme_email="example@example.com"
+    run cloud_init
+    assert_success
+    assert_mock_state "caddyfile" \
+        "{ \
+            email example@example.com \
+            acme_ca https://acme-staging-v02.api.letsencrypt.org/directory \
+        } \
+          \
+        ${hostname} { \
             reverse_proxy folio:3000 \
         }"
 }

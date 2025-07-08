@@ -294,6 +294,16 @@ teardown() {
         -backend-config="prefix=production"
 }
 
+@test "initializes Terraform staging environment" {
+    setup_remote_env
+    run deploy <<< "y" --staging
+    assert_success
+    assert_mock_called_once terraform init
+    assert_mock_called_once terraform -chdir=infra init \
+        -reconfigure \
+        -backend-config="prefix=staging"
+}
+
 @test "initializes Terraform before creating plan" {
     setup_remote_env
     run deploy <<< "y"
@@ -352,6 +362,23 @@ teardown() {
         -var "ssh_public_key_file=/path/to/test_key.pub" \
         -var "cf_token=test_token" \
         -var "do_token=test_token"
+}
+
+@test "creates staging Terraform plan" {
+    setup_remote_env
+    run deploy <<< "y" --staging
+    assert_success
+    assert_mock_called_once terraform -chdir=infra plan \
+        -out=tfplan \
+        -var "environment=staging" \
+        -var "namespace=app-account" \
+        -var "domain=example.com" \
+        -var "dns_zone=abc123" \
+        -var "ssh_port=22" \
+        -var "acme_email=example@example.com" \
+        -var "ssh_public_key_file=/path/to/public_key.pub" \
+        -var "cf_token=cf_token" \
+        -var "do_token=do_token"
 }
 
 @test "creates Terraform plan before applying" {

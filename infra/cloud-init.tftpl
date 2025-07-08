@@ -74,9 +74,15 @@ echo "App user configured."
 
 echo "Configuring Caddy..."
 caddy_global=""
-if [[ -n "${acme_email}" ]]; then
+if [[ -n "${acme_email}" ]] || [[ "${environment}" != "production" ]]; then
     caddy_global+=$(printf "{\n")
-    caddy_global+="    email ${acme_email}\n"
+    if [[ -n "${acme_email}" ]]; then
+        caddy_global+="    email ${acme_email}\n"
+    fi
+    if [[ "${environment}" != "production" ]]; then
+        acme=https://acme-staging-v02.api.letsencrypt.org/directory
+        caddy_global+="    acme_ca $acme\n"
+    fi
     caddy_global+="}\n\n"
 fi
 echo -e "$caddy_global" | tee -a /home/app/Caddyfile > /dev/null

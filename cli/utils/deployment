@@ -4,6 +4,7 @@ deployment_usage() {
     echo "Usage: $0 [options]"
     echo "Options:"
     echo "  --local         Target the local environment"
+    echo "  --staging       Deploy with staging configuration"
     echo "  --approve       Automatically approve changes"
     echo "  --domain        Specify the domain for the application"
     echo "  --dns-zone      Specify the Cloudflare zone for DNS records"
@@ -16,6 +17,8 @@ deployment_usage() {
     echo "  --do-token      Specify the DigitalOcean API token"
     echo "  --help, -h      Show this help message"
     echo "Environment variables:"
+    echo "  ENVIRONMENT             Deployment configuration."
+    echo "                          Options: production, staging"
     echo "  FOLIO_APP_DOMAIN        Domain for hosting the application."
     echo "  FOLIO_CF_DNS_ZONE       Cloudflare DNS zone ID for the domain."
     echo "  FOLIO_SSH_PORT          SSH port for the server (default: 22)."
@@ -35,6 +38,7 @@ parse_environment_args() {
         case "$1" in
             --help | -h ) deployment_usage; return 0;;
             --local ) loc=true;;
+            --staging ) ENVIRONMENT="staging";;
             --approve ) ;;
             --domain ) FOLIO_APP_DOMAIN="$2"; shift;;
             --dns-zone ) FOLIO_CF_DNS_ZONE="$2"; shift;;
