@@ -22,6 +22,7 @@ setup() {
     export -f docker
 
     mock containerize
+    mock smoke
 
     get_version() {
         log_mock_call version "$@"
@@ -133,6 +134,18 @@ teardown() {
         --name "folio" \
         -p "3000:3000" \
         "ghcr.io/app-account/app-repo:1.2.3"
+}
+
+@test "smoke tests local deployment" {
+    run deploy --local
+    assert_success
+    assert_mock_called_once smoke --insecure --domain "localhost:3000"
+}
+
+@test "return non-zero exit code if smoke test fails" {
+    smoke() { log_mock_call smoke $@; return 1; }
+    run deploy --local
+    assert_failure
 }
 
 @test "deploys remotely" {
@@ -392,4 +405,18 @@ teardown() {
     run deploy --approve
     assert_success
     assert_mock_called_in_dir infra terraform apply tfplan
+}
+
+@test "smoke tests remote deployment" {
+    setup_remote_env
+    run deploy <<< "y"
+    assert_success
+    assert_mock_called_once smoke --domain example.com
+}
+
+@test "returns non-zero exit code if smoke test fails" {
+    setup_remote_env
+    smoke() { log_mock_call smoke $@; return 1; }
+    run deploy <<< "y"
+    assert_failure
 }
