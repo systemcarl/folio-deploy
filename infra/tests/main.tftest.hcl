@@ -60,6 +60,7 @@ run "creates_droplet_with_correct_user_data" {
             templatefile(
                 "${path.module}/cloud-init.tftpl",
                 {
+                    environment = "test",
                     ssh_port = 2222,
                     ssh_public_key = file("tests/.pub"),
                     hostname = "app.example.com",
