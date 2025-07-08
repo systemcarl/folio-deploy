@@ -201,6 +201,15 @@ teardown() {
         -backend-config="prefix=production"
 }
 
+@test "initializes Terraform staging environment" {
+    export ENVIRONMENT="staging"
+    setup_remote_env
+    run destroy <<< "y" --staging
+    assert_success
+    assert_mock_called_in_dir infra terraform init -reconfigure \
+        -backend-config="prefix=staging"
+}
+
 @test "initializes Terraform before creating destroy plan" {
     setup_remote_env
     run destroy <<< "y"
@@ -222,6 +231,7 @@ teardown() {
     assert_success
     assert_mock_called_in_dir infra terraform plan -destroy \
         -out=tfplan \
+        -var "environment=production" \
         -var "namespace=app-account" \
         -var "domain=example.com" \
         -var "dns_zone=abc123" \
@@ -242,8 +252,26 @@ teardown() {
     assert_success
     assert_mock_called_in_dir infra terraform plan -destroy \
         -out=tfplan \
+        -var "environment=production" \
         -var "namespace=app-account" \
         -var "domain=example.test" \
+        -var "dns_zone=abc123" \
+        -var "ssh_port=2222" \
+        -var "ssh_public_key_file=/path/to/public_key.pub" \
+        -var "cf_token=cf_token" \
+        -var "do_token=do_token"
+}
+
+@test "creates staging Terraform destroy plan" {
+    export ENVIRONMENT="staging"
+    setup_remote_env
+    run destroy <<< "y" --staging
+    assert_success
+    assert_mock_called_in_dir infra terraform plan -destroy \
+        -out=tfplan \
+        -var "environment=staging" \
+        -var "namespace=app-account" \
+        -var "domain=example.com" \
         -var "dns_zone=abc123" \
         -var "ssh_port=2222" \
         -var "ssh_public_key_file=/path/to/public_key.pub" \

@@ -21,6 +21,7 @@ destroy() {
         echo
         echo "Destroying production environment..."
         terraform plan -destroy -out=tfplan \
+            -var "environment=$ENVIRONMENT" \
             -var "namespace=$FOLIO_APP_ACCOUNT" \
             -var "domain=$FOLIO_APP_DOMAIN" \
             -var "dns_zone=$FOLIO_CF_DNS_ZONE" \

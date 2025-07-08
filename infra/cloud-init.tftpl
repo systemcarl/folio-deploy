@@ -76,8 +76,9 @@ echo "App user configured."
 
 echo "Configuring Caddy..."
 cat <<EOF > /home/app/Caddyfile
-%{ if acme_email != "" }{
-    email ${acme_email}
+%{ if acme_email != "" || environment != "production" }{%{ if acme_email != "" }
+    email ${acme_email}%{ endif }%{ if environment != "production" }
+    acme_ca https://acme-staging-v02.api.letsencrypt.org/directory%{ endif }
 }
 
 %{ endif }

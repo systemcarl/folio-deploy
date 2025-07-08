@@ -20,6 +20,7 @@ deploy() {
 
         echo "Deploying to production environment..."
         terraform plan -out=tfplan \
+            -var "environment=$ENVIRONMENT" \
             -var "namespace=$FOLIO_APP_ACCOUNT" \
             -var "domain=$FOLIO_APP_DOMAIN" \
             -var "dns_zone=$FOLIO_CF_DNS_ZONE" \
