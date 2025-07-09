@@ -16,6 +16,7 @@ setup() {
     mock status
     mock validate
     mock smoke
+    mock test
 }
 
 teardown() {
@@ -260,4 +261,38 @@ teardown() {
     smoke() { return 1; }
     run ./smoke
     assert_failure
+}
+
+@test "test script changes working directory to project root" {
+    run ./test
+    assert_success
+    assert_mock_called_once cd "/code"
+}
+
+@test "test script changes working directory before sourcing" {
+    run ./test
+    assert_success
+    assert_mocks_called_in_order \
+        cd "/code" -- \
+        source "./cli/test"
+}
+
+@test "test script sources the test file" {
+    run ./test
+    assert_success
+    assert_mock_called_once source "./cli/test"
+}
+
+@test "test script sources before calling test function" {
+    run ./test
+    assert_success
+    assert_mocks_called_in_order \
+        source "./cli/test" -- \
+        test
+}
+
+@test "test script passes arguments to test function" {
+    run ./test --arg1 value1 --arg2 value2
+    assert_success
+    assert_mock_called_once test --arg1 value1 --arg2 value2
 }
