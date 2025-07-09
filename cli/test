@@ -5,21 +5,69 @@ test() {
         echo "  $0 [options] <test-path>"
         echo "Options:"
         echo "  --filter, -e        Specify regex to filter tests by name"
+        echo "  --set-status        Set the commit status of CI/CD pipeline"
+        echo "  --force -f          Force test even if a status is already set"
+        echo "  --gh-token          Specify the GitHub API token."
         echo "  --help, -h          Show this help message"
+        echo "Environment Variables:"
+        echo "  FOLIO_GH_TOKEN      GitHub API token."
     }
 
     local test_path=""
     local test_filter=""
+    local set_status=false
+    local force=false
     while [[ "$1" != "" ]]; do
         case "$1" in
             --help | -h ) usage; return 0;;
             --filter | -e ) test_filter="$2"; shift;;
+            --set-status ) set_status=true;;
+            --force | -f ) force=true;;
+            --gh-token ) $FOLIO_GH_TOKEN="$2"; shift;;
             * ) if [[ -z "$test_path" ]]; then test_path="$1"
                 else echo "Too many arguments provided: $1"; usage; return 1
                 fi;;
         esac
         shift
     done
+
+    if ( \
+        [[ -n "$test_path" || -n "$test_filter" ]] \
+            && [[ "$set_status" == true ]] \
+    ); then
+        echo "Error: Cannot set status when running subset of tests."
+        usage
+        return 1
+    fi
+
+    if [[ "$set_status" == true ]]; then
+        if [[ -z "$FOLIO_GH_TOKEN" ]]; then
+            echo "GitHub token required to set commit status."
+            return 1
+        fi
+
+        local status=$(status --self)
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to retrieve current commit status."
+            return 1
+        fi
+
+        if [[ -n "$status" ]]; then
+            echo "Commit already tested: $status."
+            if [[ "$force" != true ]]; then
+                echo "Aborting tests to avoid concurrent runs."
+                return 1
+            fi
+            echo "Forcing tests despite existing status."
+        fi
+    fi
+
+    update_status() {
+        if [[ "$set_status" == false ]]; then return 0; fi
+        status set --self "$1" --description "Automated tests $2." || return 1
+    }
+
+    update_status "pending" "started"
 
     local os="$(uname -s)"
     local root="$(pwd)"
@@ -49,8 +97,10 @@ test() {
 
     if [[ $? -eq 0 ]];  then
         echo "BATS tests passed successfully."
+        update_status "success" "completed successfully"
     else
         echo "BATS tests failed."
+        update_status "failure" "failed"
     fi
 
     echo

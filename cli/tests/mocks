@@ -53,7 +53,7 @@ log_mock_call() {
         if [[ -z "$arg" ]]; then continue; fi
         normalized_args+=("$(normalize --escape "$arg")");
     done
-    echo "$(pwd) ${normalized_args[*]}" >> "$MOCK_FILE"
+    echo "$(command pwd) ${normalized_args[*]}" >> "$MOCK_FILE"
 }
 export -f log_mock_call
 
