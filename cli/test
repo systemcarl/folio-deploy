@@ -1,8 +1,41 @@
 test() {
+    usage() {
+        echo "Usage:"
+        echo "  $0 [options]"
+        echo "  $0 [options] <test-path>"
+        echo "Options:"
+        echo "  --filter, -e        Specify regex to filter tests by name"
+        echo "  --help, -h          Show this help message"
+    }
+
+    local test_path=""
+    local test_filter=""
+    while [[ "$1" != "" ]]; do
+        case "$1" in
+            --help | -h ) usage; return 0;;
+            --filter | -e ) test_filter="$2"; shift;;
+            * ) if [[ -z "$test_path" ]]; then test_path="$1"
+                else echo "Too many arguments provided: $1"; usage; return 1
+                fi;;
+        esac
+        shift
+    done
+
     local os="$(uname -s)"
     local root="$(pwd)"
     if [[ "$os" == "MINGW"* || "$os" == "MSYS"* || "$os" == "CYGWIN"* ]]; then
         root="$(cygpath -w "$root")"
+    fi
+
+    if [[ -n "$test_path" ]]; then
+        if [[ ! "$test_path" =~ .*bats$ ]] && [[ ! "$test_path" =~ /$ ]]; then
+            test_path="$test_path.bats"
+        fi
+    fi
+
+    local filter_args=()
+    if [[ -n "$test_filter" ]]; then
+        filter_args=("-f" "$test_filter")
     fi
 
     echo
@@ -11,7 +44,9 @@ test() {
         --name folio-tests-bats \
         -v "$root:/code" \
         bats/bats:latest \
-        cli/tests/
+        "${filter_args[@]}" \
+        "cli/tests/$test_path"
+
     if [[ $? -eq 0 ]];  then
         echo "BATS tests passed successfully."
     else

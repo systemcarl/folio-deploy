@@ -16,3 +16,10 @@ executed.
 ```bash
 test
 ```
+
+To target specific test files, you can pass an individual test file or directory
+as an argument to the `test` script. Tests can also be filtered by name using
+the `--filter` option.
+```bash
+test <file_or_directory> --filter <test_name>
+```
