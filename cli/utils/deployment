@@ -4,6 +4,7 @@ deployment_usage() {
     echo "Usage: $0 [options]"
     echo "Options:"
     echo "  --local         Target the local environment"
+    echo "  --environment   Specify the deployment environment"
     echo "  --staging       Deploy with staging configuration"
     echo "  --approve       Automatically approve changes"
     echo "  --set-status    Set the deployment commit status of CI/CD pipeline"
@@ -43,6 +44,7 @@ parse_environment_args() {
         case "$1" in
             --help | -h ) deployment_usage; return 0;;
             --local ) loc=true;;
+            --environment ) ENVIRONMENT="$2"; shift;;
             --staging ) ENVIRONMENT="staging";;
             --approve ) ;;
             --set-status ) set_status=true;;

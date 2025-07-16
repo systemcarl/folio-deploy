@@ -521,6 +521,7 @@ teardown() {
 @test "creates Terraform plan from options" {
     setup_remote_env
     run deploy <<< "y" \
+        --environment "testing" \
         --domain "example.test" \
         --dns-zone "123abc" \
         --ssh-port "2222" \
@@ -532,7 +533,7 @@ teardown() {
     assert_success
     assert_mock_called_once terraform -chdir=infra plan \
         -out=tfplan \
-        -var "environment=production" \
+        -var "environment=testing" \
         -var "app_version=1.2.3" \
         -var "namespace=app-account" \
         -var "domain=example.test" \
