@@ -10,6 +10,7 @@ validate() {
         echo "  --set-status    Set the commit status of application."
         echo "  --force, -f     Force validation even if status already set."
         echo "  --gh-token      Specify the GitHub API token."
+        echo "  --verbose       Enable verbose output"
         echo "  --help, -h      Show this help message."
         echo "Environment variables:"
         echo "  FOLIO_GH_TOKEN      GitHub API token."
@@ -20,17 +21,31 @@ validate() {
     local target=""
     local set_status=false
     local force=false
+    local verbose=false
     while [[ "$1" != "" ]]; do
         case $1 in
             --help | -h ) usage; return 0;;
             --set-status ) set_status=true;;
             --force | -f ) force=true;;
             --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
+            --verbose ) verbose=true;;
             * ) if [[ -z "$target" ]]; then target="$1";
                 else echo "Error: Too many arguments: $1"; return 1; fi;;
         esac
         shift
     done
+
+    if [[ "$verbose" == "true" ]]; then
+        echo "Validating application at: $target"
+        echo "($(fingerprint_env))"
+        if [[ "$set_status" == "true" ]]; then
+            if [[ "$force" == "true" ]]; then
+                echo "Force status updates enabled."
+            else
+                echo "Status updates enabled."
+            fi
+        else echo "Status updates disabled."; fi
+    fi
 
     if [[ "$set_status" == "true" ]] && [[ -z "$FOLIO_GH_TOKEN" ]]; then
         echo "Error: GitHub token required to set commit status."

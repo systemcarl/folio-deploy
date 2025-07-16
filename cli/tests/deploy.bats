@@ -2,6 +2,7 @@
 
 TEST_DIR="$(realpath "$(dirname "$BATS_TEST_FILENAME")")"
 source "$TEST_DIR/mocks"
+source "$TEST_DIR/../utils/environment"
 source "$TEST_DIR/../deploy"
 
 setup() {
@@ -65,6 +66,41 @@ teardown() {
     run deploy --local
     assert_success
     assert_mock_called_once load_env
+}
+
+@test "prints environment fingerprint when verbose" {
+    setup_remote_env
+    run deploy <<< "y" --verbose
+    assert_success
+    assert_output --partial "$(fingerprint_env)"
+}
+
+@test "prints auto-approve when verbose" {
+    setup_remote_env
+    run deploy --verbose --approve
+    assert_success
+    assert_output --partial "Auto-approve enabled."
+}
+
+@test "prints status updates enabled when verbose" {
+    setup_remote_env
+    run deploy <<< "y" --verbose --set-status
+    assert_success
+    assert_output --partial "Status updates enabled."
+}
+
+@test "prints status updates disabled when verbose" {
+    setup_remote_env
+    run deploy <<< "y" --verbose
+    assert_success
+    assert_output --partial "Status updates disabled."
+}
+
+@test "prints force status updates enabled when verbose" {
+    setup_remote_env
+    run deploy <<< "y" --verbose --set-status --force
+    assert_success
+    assert_output --partial "Force status updates enabled."
 }
 
 @test "refuses to set status of local deployment" {
