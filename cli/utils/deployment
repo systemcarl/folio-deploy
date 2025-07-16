@@ -19,6 +19,7 @@ deployment_usage() {
     echo "  --cf-token      Specify the Cloudflare API token"
     echo "  --do-token      Specify the DigitalOcean API token"
     echo "  --gh-token      Specify the GitHub API token"
+    echo "  --verbose       Enable verbose output"
     echo "  --help, -h      Show this help message"
     echo "Environment variables:"
     echo "  ENVIRONMENT             Deployment configuration."
@@ -40,6 +41,7 @@ parse_environment_args() {
 
     local loc=false
     local set_status=false
+    local verbose=false
     while [[ "$1" != "" ]]; do
         case "$1" in
             --help | -h ) deployment_usage; return 0;;
@@ -59,10 +61,20 @@ parse_environment_args() {
             --cf-token ) FOLIO_CF_TOKEN="$2"; shift;;
             --do-token ) FOLIO_DO_TOKEN="$2"; shift;;
             --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
+            --verbose ) verbose=true;;
             * ) echo "Unknown option: $1"; deployment_usage; return 1;;
         esac
         shift
     done
+
+    if [[ "$verbose" == "true" ]]; then
+        if [[ "$loc" == "false" ]]; then
+            echo "Updating $ENVIRONMENT deployment at $FOLIO_APP_DOMAIN"
+        else
+            echo "Updating local deployment"
+        fi
+        echo "($(fingerprint_env))"
+    fi
 
     if [[ "$loc" == "true" ]] && [[ "$set_status" == "true" ]]; then
         echo "Error: Cannot set status for local deployments."

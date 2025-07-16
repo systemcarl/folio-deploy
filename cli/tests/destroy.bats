@@ -2,6 +2,7 @@
 
 TEST_DIR="$(realpath "$(dirname "$BATS_TEST_FILENAME")")"
 source "$TEST_DIR/mocks"
+source "$TEST_DIR/../utils/environment"
 source "$TEST_DIR/../destroy"
 
 setup() {
@@ -59,6 +60,13 @@ teardown() {
     run load_env
     assert_success
     assert_mock_called_once load_env
+}
+
+@test "prints environment fingerprint when verbose" {
+    setup_remote_env
+    run destroy <<< "y" --verbose
+    assert_success
+    assert_output --partial "$(fingerprint_env)"
 }
 
 @test "does not stop container if no local container" {

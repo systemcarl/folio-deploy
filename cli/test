@@ -15,6 +15,7 @@ test() {
         echo "  --force -f          Force test even if a status is already set"
         echo "  --gh-token          Specify the GitHub API token."
         echo "  --ci                Run in non-interactive mode"
+        echo "  --verbose           Enable verbose output"
         echo "  --help, -h          Show this help message"
         echo "Environment Variables:"
         echo "  FOLIO_GH_TOKEN      GitHub API token."
@@ -28,6 +29,7 @@ test() {
     local set_status=false
     local force=false
     local interactive=true
+    local verbose=false
     while [[ "$1" != "" ]]; do
         case "$1" in
             --help | -h ) usage; return 0;;
@@ -39,12 +41,30 @@ test() {
             --force | -f ) force=true;;
             --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
             --ci ) interactive=false;;
+            --verbose ) verbose=true;;
             * ) if [[ -z "$test_path" ]]; then test_path="$1"
                 else echo "Too many arguments provided: $1"; usage; return 1
                 fi;;
         esac
         shift
     done
+
+    if [[ "$verbose" == "true" ]]; then
+        echo "Running tests."
+        echo "($(fingerprint_env))"
+        if [[ "$interactive" == "true" ]]; then
+            echo "Running tests in interactive mode."
+        else
+            echo "Running tests in non-interactive mode."
+        fi
+        if [[ "$set_status" == "true" ]]; then
+            if [[ "$force" == "true" ]]; then
+                echo "Force status updates enabled."
+            else
+                echo "Status updates enabled.";
+            fi
+        else echo "Status updates disabled."; fi
+    fi
 
     if ( \
         [[ -n "$test_path" || -n "$test_filter" ]] \

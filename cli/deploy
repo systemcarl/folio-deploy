@@ -9,7 +9,10 @@ deploy() {
     local approve
     local set_status
     local force
+    local verbose
 
+    verbose=$(parse_flag "--verbose" "$@") || return 1
+    if [[ "$verbose" == "true" ]]; then echo "Deploying application."; fi
     parse_environment_args "$@" || return 1
 
     loc=$(parse_flag "--local" "$@") || return 1
@@ -18,6 +21,18 @@ deploy() {
     force=$(parse_flag "--force|-f" "$@") || return 1
 
     local version=$(get_version folio)
+
+    if [[ "$verbose" == "true" ]]; then
+        echo "Deploying version $version."
+        if [[ "$approve" == "true" ]]; then echo "Auto-approve enabled."; fi
+        if [[ "$set_status" == "true" ]]; then
+            if [[ "$force" == "true" ]]; then
+                echo "Force status updates enabled."
+            else
+                echo "Status updates enabled."
+            fi
+        else echo "Status updates disabled."; fi
+    fi
 
     if [[ "$set_status" == "true" ]]; then
         local status=$(status --self --context "cd/$FOLIO_CICD_REPO")

@@ -4,13 +4,20 @@ source "$(dirname "${BASH_SOURCE[0]}")/utils/package"
 destroy() {
     local loc
     local approve
+    local verbose
 
+    verbose=$(parse_flag "--verbose" "$@") || return 1
+    if [[ "$verbose" == "true" ]]; then echo "Tearing down application."; fi
     parse_environment_args "$@" || return 1
 
     loc=$(parse_flag "--local" "$@") || return 1
     approve=$(parse_flag "--approve" "$@") || return 1
 
     local version=$(get_version folio)
+
+    if [[ "$verbose" == "true" ]] && [[ "$approve" == "true" ]]; then
+        echo "Auto-approve enabled."
+    fi
 
     if [[ "$loc" = "false" ]]; then
         echo "Initializing Terraform..."

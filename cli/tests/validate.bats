@@ -2,6 +2,7 @@
 
 TEST_DIR="$(realpath "$(dirname "$BATS_TEST_FILENAME")")"
 source "$TEST_DIR/mocks"
+source "$TEST_DIR/../utils/environment"
 source "$TEST_DIR/../validate"
 
 setup() {
@@ -36,6 +37,30 @@ teardown() {
     run validate
     assert_success
     assert_output --partial "All tests passed successfully."
+}
+
+@test "prints environment fingerprint when verbose" {
+    run validate --verbose
+    assert_success
+    assert_output --partial "$(fingerprint_env)"
+}
+
+@test "prints status updates enabled when verbose" {
+    run validate --verbose --set-status
+    assert_success
+    assert_output --partial "Status updates enabled."
+}
+
+@test "prints status updates disabled when verbose" {
+    run validate --verbose
+    assert_success
+    assert_output --partial "Status updates disabled."
+}
+
+@test "prints force status updates enabled when verbose" {
+    run validate --verbose --set-status --force
+    assert_success
+    assert_output --partial "Force status updates enabled."
 }
 
 @test "returns non-zero exit code if change directory fails" {

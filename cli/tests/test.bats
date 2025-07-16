@@ -276,6 +276,12 @@ teardown() {
     assert_mock_not_called docker run -it
 }
 
+@test "prints non-interactive terminal option when verbose" {
+    run test --ci --verbose
+    assert_success
+    assert_output --partial "Running tests in non-interactive mode."
+}
+
 @test "mounts Unix project root in Docker container" {
     set_mock_state project_root "/c/code"
     run test

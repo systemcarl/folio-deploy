@@ -43,3 +43,24 @@ load_env() {
     GOOGLE_CREDENTIALS="${FOLIO_GCS_CREDENTIALS:-$GOOGLE_CREDENTIALS}"
     export GOOGLE_CREDENTIALS
 }
+
+fingerprint_env() {
+    local env_string=""
+    env_string+="ENVIRONMENT=$ENVIRONMENT;"
+    env_string+="GOOGLE_CREDENTIALS=$GOOGLE_CREDENTIALS;"
+    env_string+="FOLIO_APP_ACCOUNT=$FOLIO_APP_ACCOUNT;"
+    env_string+="FOLIO_APP_REPO=$FOLIO_APP_REPO;"
+    env_string+="FOLIO_CICD_ACCOUNT=$FOLIO_CICD_ACCOUNT;"
+    env_string+="FOLIO_CICD_REPO=$FOLIO_CICD_REPO;"
+    env_string+="FOLIO_APP_DOMAIN=$FOLIO_APP_DOMAIN;"
+    env_string+="FOLIO_CF_DNS_ZONE=$FOLIO_CF_DNS_ZONE;"
+    env_string+="FOLIO_SSH_PORT=$FOLIO_SSH_PORT;"
+    env_string+="FOLIO_ACME_EMAIL=$FOLIO_ACME_EMAIL;"
+    env_string+="FOLIO_SSH_KEY_ID=$FOLIO_SSH_KEY_ID;"
+    env_string+="FOLIO_PUBLIC_KEY_FILE=$FOLIO_PUBLIC_KEY_FILE;"
+    env_string+="FOLIO_CF_TOKEN=$FOLIO_CF_TOKEN;"
+    env_string+="FOLIO_DO_TOKEN=$FOLIO_DO_TOKEN;"
+    env_string+="FOLIO_GH_TOKEN=$FOLIO_GH_TOKEN;"
+    local hash=$(echo "$env_string" | sha256sum | cut -d ' ' -f 1)
+    echo "${hash:0:16}"
+}
