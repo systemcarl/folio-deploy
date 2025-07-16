@@ -10,6 +10,7 @@ validate() {
         echo "  --set-status    Set the commit status of application."
         echo "  --force, -f     Force validation even if status already set."
         echo "  --gh-token      Specify the GitHub API token."
+        echo "  --dry-run       Perform a dry run without executing validation"
         echo "  --verbose       Enable verbose output"
         echo "  --help, -h      Show this help message."
         echo "Environment variables:"
@@ -21,6 +22,7 @@ validate() {
     local target=""
     local set_status=false
     local force=false
+    local dry_run=false
     local verbose=false
     while [[ "$1" != "" ]]; do
         case $1 in
@@ -28,6 +30,7 @@ validate() {
             --set-status ) set_status=true;;
             --force | -f ) force=true;;
             --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
+            --dry-run ) dry_run=true;;
             --verbose ) verbose=true;;
             * ) if [[ -z "$target" ]]; then target="$1";
                 else echo "Error: Too many arguments: $1"; return 1; fi;;
@@ -46,6 +49,8 @@ validate() {
             fi
         else echo "Status updates disabled."; fi
     fi
+
+    if [[ "$dry_run" == "true" ]]; then return 0; fi
 
     if [[ "$set_status" == "true" ]] && [[ -z "$FOLIO_GH_TOKEN" ]]; then
         echo "Error: GitHub token required to set commit status."

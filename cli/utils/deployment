@@ -19,6 +19,7 @@ deployment_usage() {
     echo "  --cf-token      Specify the Cloudflare API token"
     echo "  --do-token      Specify the DigitalOcean API token"
     echo "  --gh-token      Specify the GitHub API token"
+    echo "  --dry-run       Perform a dry run without executing deployment"
     echo "  --verbose       Enable verbose output"
     echo "  --help, -h      Show this help message"
     echo "Environment variables:"
@@ -61,6 +62,7 @@ parse_environment_args() {
             --cf-token ) FOLIO_CF_TOKEN="$2"; shift;;
             --do-token ) FOLIO_DO_TOKEN="$2"; shift;;
             --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
+            --dry-run ) ;;
             --verbose ) verbose=true;;
             * ) echo "Unknown option: $1"; deployment_usage; return 1;;
         esac

@@ -11,12 +11,15 @@ destroy() {
 
     loc=$(parse_flag "--local" "$@") || return 1
     approve=$(parse_flag "--approve" "$@") || return 1
+    dry_run=$(parse_flag "--dry-run" "$@") || return 1
 
     local version=$(get_version folio)
 
     if [[ "$verbose" == "true" ]] && [[ "$approve" == "true" ]]; then
         echo "Auto-approve enabled."
     fi
+
+    if [[ "$dry_run" == "true" ]]; then return 0; fi
 
     if [[ "$loc" = "false" ]]; then
         echo "Initializing Terraform..."
