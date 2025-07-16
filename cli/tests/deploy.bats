@@ -703,3 +703,23 @@ teardown() {
         --description "Deployment of production to example.com deployed \
             successfully."
 }
+
+@test "does not set commit status during dry run" {
+    setup_remote_env
+    run deploy <<< "y" --set-status --dry-run
+    assert_success
+    assert_mock_not_called status
+}
+
+@test "does not deploy locally during dry run" {
+    run deploy <<< "y" --local --dry-run
+    assert_success
+    assert_mock_not_called docker
+}
+
+@test "does not deploy remotely during dry run" {
+    setup_remote_env
+    run deploy <<< "y" --dry-run
+    assert_success
+    assert_mock_not_called terraform
+}

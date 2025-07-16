@@ -375,3 +375,21 @@ teardown() {
     assert_mock_called_once status set --self success \
         --description "Automated tests completed successfully."
 }
+
+@test "does not set commit status during dry run" {
+    run test --set-status --dry-run
+    assert_success
+    assert_mock_not_called status
+}
+
+@test "does not run BATS tests during dry run" {
+    run test --dry-run
+    assert_success
+    assert_mock_not_called docker
+}
+
+@test "does not run Terraform tests during dry run" {
+    run test --infra --dry-run
+    assert_success
+    assert_mock_not_called terraform
+}

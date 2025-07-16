@@ -249,3 +249,22 @@ teardown() {
         npm run test -- \
         git checkout -f -
 }
+
+@test "does not set commit status during dry run" {
+    run validate --dry-run
+    assert_success
+    assert_mock_not_called status set
+}
+
+@test "does not update app version during dry run" {
+    set_mock_state is_current_ref "false"
+    run validate branch --dry-run
+    assert_success
+    assert_mock_not_called git
+}
+
+@test "does not run tests during dry run" {
+    run validate --dry-run
+    assert_success
+    assert_mock_not_called npm
+}

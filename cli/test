@@ -15,6 +15,7 @@ test() {
         echo "  --force -f          Force test even if a status is already set"
         echo "  --gh-token          Specify the GitHub API token."
         echo "  --ci                Run in non-interactive mode"
+        echo "  --dry-run           Perform a dry run without executing tests"
         echo "  --verbose           Enable verbose output"
         echo "  --help, -h          Show this help message"
         echo "Environment Variables:"
@@ -29,6 +30,7 @@ test() {
     local set_status=false
     local force=false
     local interactive=true
+    local dry_run=false
     local verbose=false
     while [[ "$1" != "" ]]; do
         case "$1" in
@@ -41,6 +43,7 @@ test() {
             --force | -f ) force=true;;
             --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
             --ci ) interactive=false;;
+            --dry-run ) dry_run=true;;
             --verbose ) verbose=true;;
             * ) if [[ -z "$test_path" ]]; then test_path="$1"
                 else echo "Too many arguments provided: $1"; usage; return 1
@@ -65,6 +68,8 @@ test() {
             fi
         else echo "Status updates disabled."; fi
     fi
+
+    if [[ "$dry_run" == "true" ]]; then return 0; fi
 
     if ( \
         [[ -n "$test_path" || -n "$test_filter" ]] \

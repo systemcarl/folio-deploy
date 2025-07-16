@@ -9,6 +9,7 @@ deploy() {
     local approve
     local set_status
     local force
+    local dry_run
     local verbose
 
     verbose=$(parse_flag "--verbose" "$@") || return 1
@@ -19,6 +20,7 @@ deploy() {
     approve=$(parse_flag "--approve" "$@") || return 1
     set_status=$(parse_flag "--set-status" "$@") || return 1
     force=$(parse_flag "--force|-f" "$@") || return 1
+    dry_run=$(parse_flag "--dry-run" "$@") || return 1
 
     local version=$(get_version folio)
 
@@ -33,6 +35,8 @@ deploy() {
             fi
         else echo "Status updates disabled."; fi
     fi
+
+    if [[ "$dry_run" == "true" ]]; then return 0; fi
 
     if [[ "$set_status" == "true" ]]; then
         local status=$(status --self --context "cd/$FOLIO_CICD_REPO")

@@ -377,3 +377,16 @@ teardown() {
     assert_output --partial "Deployment destroyed successfully."
     assert_mock_called_once terraform -chdir=infra apply tfplan
 }
+
+@test "does not stop container during dry-run" {
+    run destroy --local --dry-run
+    assert_success
+    assert_mock_not_called docker
+}
+
+@test "does not destroy resources during dry-run" {
+    setup_remote_env
+    run destroy <<< "y" --dry-run
+    assert_success
+    assert_mock_not_called terraform
+}
