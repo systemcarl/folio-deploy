@@ -26,6 +26,7 @@ test() {
     local flags=""
     local set_status=false
     local force=false
+    local interactive=true
     while [[ "$1" != "" ]]; do
         case "$1" in
             --help | -h ) usage; return 0;;
@@ -36,6 +37,7 @@ test() {
             --set-status ) set_status=true;;
             --force | -f ) force=true;;
             --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
+            --ci ) interactive=false;;
             * ) if [[ -z "$test_path" ]]; then test_path="$1"
                 else echo "Too many arguments provided: $1"; usage; return 1
                 fi;;
@@ -112,6 +114,9 @@ test() {
         filter_args=("-f" "$test_filter")
     fi
 
+    local interact=""
+    if [[ "$interactive" == "true" ]]; then interact="-it"; fi
+
     if [[ "$flags" != "t" ]]; then
         echo "Pulling BATS Docker image..."
         docker pull bats/bats:latest || {
@@ -130,7 +135,7 @@ test() {
         local path="cli/tests/$test_path"
         if [[ -d "$path" ]] || [[ -f "$path" ]]; then
             echo "Running command line interface BATS tests..."
-            docker run --rm -it \
+            docker run $interact --rm \
                 --name folio-tests-bats \
                 -v "$root:/code" \
                 bats/bats:latest \
@@ -152,15 +157,17 @@ test() {
         local path="infra/tests/$test_path"
         if [[ -d "$path" ]] || [[ -f "$path" ]]; then
             echo "Running infrastructure BATS tests..."
-            docker run --rm -it \
+            docker run $interact --rm \
                 --name folio-tests-bats \
                 -v "$root:/code" \
                 bats/bats:latest \
                 "${filter_args[@]}" \
                 "$path"
             if [[ $? -eq 0 ]];  then
+                echo
                 echo "Infrastructure BATS tests passed successfully."
             else
+                echo
                 echo "Infrastructure BATS tests failed."
                 failures=$((failures + 1))
             fi
