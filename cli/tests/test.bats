@@ -108,7 +108,7 @@ teardown() {
 @test "runs command line interface BATS tests" {
     run test
     assert_success
-    assert_mock_called_once docker run --rm -it \
+    assert_mock_called_once docker run -it --rm \
         --name folio-tests-bats \
         bats/bats:latest \
         cli/tests/
@@ -117,7 +117,7 @@ teardown() {
 @test "runs command line interface BATS tests only" {
     run test --cli
     assert_success
-    assert_mock_not_called docker run --rm -it \
+    assert_mock_not_called docker run -it --rm \
         --name folio-tests-bats \
         bats/bats:latest \
         infra/tests/
@@ -161,7 +161,7 @@ teardown() {
 @test "runs infrastructure BATS tests" {
     run test
     assert_success
-    assert_mock_called_once docker run --rm -it \
+    assert_mock_called_once docker run -it --rm \
         --name folio-tests-bats \
         bats/bats:latest \
         infra/tests/
@@ -171,7 +171,7 @@ teardown() {
 @test "runs infrastructure BATS tests only" {
     run test --infra
     assert_success
-    assert_mock_not_called docker run --rm -it \
+    assert_mock_not_called docker run -it --rm \
         --name folio-tests-bats \
         bats/bats:latest \
         cli/tests/
@@ -250,11 +250,11 @@ teardown() {
 @test "runs Terraform tests only" {
     run test --terraform
     assert_success
-    assert_mock_not_called docker run --rm -it \
+    assert_mock_not_called docker run -it --rm \
         --name folio-tests-bats \
         bats/bats:latest \
         cli/tests/
-    assert_mock_not_called docker run --rm -it \
+    assert_mock_not_called docker run -it --rm \
         --name folio-tests-bats \
         bats/bats:latest \
         infra/tests/
@@ -270,12 +270,18 @@ teardown() {
     assert_output --partial "Terraform tests failed."
 }
 
+@test "runs BATS tests with non-interactive terminal" {
+    run test --ci
+    assert_success
+    assert_mock_not_called docker run -it
+}
+
 @test "mounts Unix project root in Docker container" {
     set_mock_state project_root "/c/code"
     run test
     assert_success
     assert_mock_called_times 2 \
-        docker run --rm -it -v "/c/code:/code"
+        docker run -v "/c/code:/code"
 }
 
 @test "converts Unix project root to MinGW path" {
@@ -292,7 +298,7 @@ teardown() {
     run test
     assert_success
     assert_mock_called_times 2 \
-        docker run --rm -it -v "C:\\code:/code"
+        docker run -v "C:\\code:/code"
 }
 
 @test "converts Unix project root to MSYS path" {
@@ -309,7 +315,7 @@ teardown() {
     run test
     assert_success
     assert_mock_called_times 2 \
-        docker run --rm -it -v "C:\\code:/code"
+        docker run -v "C:\\code:/code"
 }
 
 @test "converts Unix project root to Cygwin path" {
@@ -326,7 +332,7 @@ teardown() {
     run test
     assert_success
     assert_mock_called_times 2 \
-        docker run --rm -it -v "C:\\code:/code"
+        docker run -v "C:\\code:/code"
 }
 
 @test "sets commit status to 'failure' after failing tests" {
