@@ -99,6 +99,26 @@ teardown() {
         docker run
 }
 
+@test "pulls BATS Docker image silently" {
+    docker() {
+        log_mock_call docker "$@"
+        if [[ "$1" == "pull" ]]; then echo "latest: Pulling from bats/bats"; fi
+    }
+    run test
+    assert_success
+    refute_output --partial "latest: Pulling from bats/bats"
+}
+
+@test "pulls BATS Docker image verbosely" {
+    docker() {
+        log_mock_call docker "$@"
+        if [[ "$1" == "pull" ]]; then echo "latest: Pulling from bats/bats"; fi
+    }
+    run test --verbose
+    assert_success
+    assert_output --partial "latest: Pulling from bats/bats"
+}
+
 @test "does not pull BATS Docker image for terraform tests" {
     run test --terraform
     assert_success

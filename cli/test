@@ -140,7 +140,9 @@ test() {
 
     if [[ "$flags" != "t" ]]; then
         echo "Pulling BATS Docker image..."
-        docker pull bats/bats:latest || {
+        local out="$([[ "$verbose" == "true" ]] && echo "/dev/stdout" \
+            || echo "/dev/null")"
+        docker pull bats/bats:latest > $out || {
             echo "Failed to pull BATS Docker image."
         }
         if [[ $? -ne 0 ]]; then
