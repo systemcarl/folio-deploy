@@ -112,6 +112,18 @@ test() {
         filter_args=("-f" "$test_filter")
     fi
 
+    if [[ "$flags" != "t" ]]; then
+        echo "Pulling BATS Docker image..."
+        docker pull bats/bats:latest || {
+            echo "Failed to pull BATS Docker image."
+        }
+        if [[ $? -ne 0 ]]; then
+            echo "Error: Failed to pull BATS Docker image."
+            return 1
+        fi
+        echo "BATS Docker image pulled successfully."
+    fi
+
     failures=$((0))
     if [[ -z "$flags" ]] || [[ "$flags" == *c* ]]; then
         echo
