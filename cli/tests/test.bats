@@ -99,6 +99,12 @@ teardown() {
         docker run
 }
 
+@test "does not pull BATS Docker image for terraform tests" {
+    run test --terraform
+    assert_success
+    assert_mock_not_called docker pull bats/bats:latest
+}
+
 @test "runs command line interface BATS tests" {
     run test
     assert_success
