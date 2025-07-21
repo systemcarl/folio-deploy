@@ -14,7 +14,7 @@ smoke() {
     load_env
 
     local insecure=false
-    while [[ "$1" != "" ]]; do
+    while [[ "$*" != "" ]]; do
         case "$1" in
             --help | -h ) usage; return 0;;
             --domain ) FOLIO_APP_DOMAIN="$2"; shift;;

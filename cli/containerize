@@ -17,7 +17,7 @@ containerize() {
 
     local push=false
     local rebuild=false
-    while [[ "$1" != "" ]]; do
+    while [[ "$*" != "" ]]; do
         case $1 in
             --help | -h ) usage; return 0;;
             --push ) push=true;;

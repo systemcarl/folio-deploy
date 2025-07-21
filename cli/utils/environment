@@ -2,7 +2,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/repo"
 
 load_env() {
     local ENV_FILE="$(dirname "${BASH_SOURCE[0]}")/../../.env"
-    while [[ "$1" != "" ]]; do
+    while [[ "$*" != "" ]]; do
         case $1 in
             --env-file ) ENV_FILE="$2"; shift;;
             * ) echo "Invalid option: $1"; return 1;;

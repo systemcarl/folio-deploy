@@ -32,7 +32,7 @@ test() {
     local interactive=true
     local dry_run=false
     local verbose=false
-    while [[ "$1" != "" ]]; do
+    while [[ "$*" != "" ]]; do
         case "$1" in
             --help | -h ) usage; return 0;;
             --cli ) flags+="c";;

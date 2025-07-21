@@ -32,7 +32,7 @@ status() {
     local context="ci/$FOLIO_CICD_REPO"
     local description="Automated validation by $FOLIO_CICD_REPO CI."
     local target_self=false
-    while [[ "$1" != "" ]]; do
+    while [[ "$*" != "" ]]; do
         case "$1" in
             --help | -h ) usage; exit 0;;
             --self )

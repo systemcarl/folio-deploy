@@ -45,7 +45,7 @@ parse_environment_args() {
     local loc=false
     local set_status=false
     local verbose=false
-    while [[ "$1" != "" ]]; do
+    while [[ "$*" != "" ]]; do
         case "$1" in
             --help | -h ) deployment_usage; return 0;;
             --local ) loc=true;;
@@ -151,7 +151,7 @@ parse_environment_args() {
 parse_flag() {
     local args=$1; shift
     IFS='|' read -ra arg_list <<< "$args"
-    while [[ "$1" != "" ]]; do
+    while [[ "$*" != "" ]]; do
         for arg in "${arg_list[@]}"; do
             case "$1" in
                 "$arg" ) echo true; return 0;;
