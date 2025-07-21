@@ -463,6 +463,21 @@ teardown() {
     assert_mock_called_once containerize --push
 }
 
+@test "authenticates containerization with environment GitHub Packages token" {
+    setup_remote_env
+    FOLIO_GHPR_TOKEN="ghpr_token"
+    run deploy <<< "y"
+    assert_success
+    assert_mock_called_once containerize --push --ghpr-token "ghpr_token"
+}
+
+@test "authenticates containerization with GitHub Packages token option" {
+    setup_remote_env
+    run deploy <<< "y" --ghpr-token "ghpr_token"
+    assert_success
+    assert_mock_called_once containerize --push --ghpr-token "ghpr_token"
+}
+
 @test "returns non-zero exit code if containerization fails" {
     setup_remote_env
     containerize() { log_mock_call containerize "$@"; return 1; }

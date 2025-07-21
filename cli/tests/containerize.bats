@@ -12,7 +12,13 @@ setup() {
     mock npm
 
     docker() {
-        log_mock_call docker "$@"
+        if [[ "$1" == "login" ]]; then
+            local input=""
+            if [ ! -t 0 ]; then
+                while IFS= read -r line; do input+="$line"$'\n'; done
+            fi
+        fi
+        log_mock_call docker "$@" "$input"
         if [[ "$1" == "image" && "$2" == "inspect" ]]; then
             if [[ $(get_mock_state image_local) == "false" ]]; then
                 return 1
@@ -57,6 +63,27 @@ teardown() {
     run containerize
     assert_success
     assert_mock_called_once get_version folio
+}
+
+@test "does not authenticate Docker" {
+    run containerize
+    assert_success
+    assert_mock_not_called docker login
+}
+
+@test "authenticates Docker with environment GitHub Packages token" {
+    FOLIO_GHPR_TOKEN="ghpr_test"
+    run containerize --push
+    assert_success
+    assert_mock_called_once docker login ghcr.io \
+        --username "app-account" --password-stdin "ghpr_test"
+}
+
+@test "authenticates Docker with GitHub Packages token option" {
+    run containerize --push --ghpr-token "ghpr_test"
+    assert_success
+    assert_mock_called_once docker login ghcr.io \
+        --username "app-account" --password-stdin "ghpr_test"
 }
 
 @test "fetches local image" {

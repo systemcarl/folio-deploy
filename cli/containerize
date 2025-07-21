@@ -7,7 +7,10 @@ containerize() {
         echo "Options:"
         echo "  --push              Push image to GitHub Container Registry."
         echo "  --rebuild           Force rebuild of the Docker image."
+        echo "  --ghpr-token        Specify the GitHub Package Registry token."
         echo "  --help, -h          Show this help message."
+        echo "Environment Variables:"
+        echo "  FOLIO_GHPR_TOKEN    GitHub Package Registry token."
     }
 
     load_env
@@ -19,6 +22,7 @@ containerize() {
             --help | -h ) usage; return 0;;
             --push ) push=true;;
             --rebuild ) rebuild=true;;
+            --ghpr-token ) FOLIO_GHPR_TOKEN="$2"; shift;;
             * ) echo "Invalid option: $1"; return 1;;
         esac
         shift
@@ -31,6 +35,17 @@ containerize() {
     local remote_image="ghcr.io/$FOLIO_APP_ACCOUNT/$tag_prefix"
     if [[ "$push" = "true" ]]; then
         tag_prefix="$remote_image"
+    fi
+
+    if [[ -n "$FOLIO_GHPR_TOKEN" ]]; then
+        echo "Authenticating Docker to GitHub Container Registry..."
+        echo "$FOLIO_GHPR_TOKEN" | docker login ghcr.io \
+            --username "$FOLIO_APP_ACCOUNT" --password-stdin
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to log in to GitHub Container Registry."
+            return 1
+        fi
+        echo "Logged in to GitHub Container Registry successfully."
     fi
 
     if [[ "$rebuild" == "false" ]]; then

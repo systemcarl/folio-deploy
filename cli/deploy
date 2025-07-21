@@ -71,7 +71,7 @@ deploy() {
     update_status "pending" "started" || return 1
 
     if [[ "$loc" = "false" ]]; then
-        containerize --push
+        containerize --push --ghpr-token "$FOLIO_GHPR_TOKEN"
         if [[ $? -ne 0 ]]; then
             echo "Failed to build and push Docker image."
             update_status "failure" "failed to build and push image"

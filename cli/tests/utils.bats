@@ -71,6 +71,7 @@ setup_env() {
     FOLIO_CF_TOKEN="cf_test"
     FOLIO_DO_TOKEN="do_test"
     FOLIO_GH_TOKEN="gh_test"
+    FOLIO_GHPR_TOKEN="ghpr_test"
 }
 
 teardown() {
@@ -178,6 +179,12 @@ teardown() {
     assert_equal "$FOLIO_GH_TOKEN" "gh_test"
 }
 
+@test "uses environment GitHub Packages token" {
+    setup_env
+    load_env --env-file ""
+    assert_equal "$FOLIO_GHPR_TOKEN" "ghpr_test"
+}
+
 @test "loads environment file variable" {
     setup_env
     load_env --env-file "cli/tests/test.env"
@@ -242,6 +249,12 @@ teardown() {
     setup_env
     load_env --env-file "cli/tests/test.env"
     assert_equal "$FOLIO_GH_TOKEN" "gh_env"
+}
+
+@test "loads environment file GitHub Packages token" {
+    setup_env
+    load_env --env-file "cli/tests/test.env"
+    assert_equal "$FOLIO_GHPR_TOKEN" "ghpr_env"
 }
 
 @test "queries json using correct statements" {

@@ -19,6 +19,7 @@ deployment_usage() {
     echo "  --cf-token      Specify the Cloudflare API token"
     echo "  --do-token      Specify the DigitalOcean API token"
     echo "  --gh-token      Specify the GitHub API token"
+    echo "  --ghpr-token    Specify the GitHub Package Registry token"
     echo "  --dry-run       Perform a dry run without executing deployment"
     echo "  --verbose       Enable verbose output"
     echo "  --help, -h      Show this help message"
@@ -35,6 +36,7 @@ deployment_usage() {
     echo "  FOLIO_CF_TOKEN          Cloudflare API token."
     echo "  FOLIO_DO_TOKEN          DigitalOcean API token."
     echo "  FOLIO_GH_TOKEN          GitHub API token."
+    echo "  FOLIO_GHPR_TOKEN       GitHub Package Registry token."
 }
 
 parse_environment_args() {
@@ -62,6 +64,7 @@ parse_environment_args() {
             --cf-token ) FOLIO_CF_TOKEN="$2"; shift;;
             --do-token ) FOLIO_DO_TOKEN="$2"; shift;;
             --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
+            --ghpr-token ) FOLIO_GHPR_TOKEN="$2"; shift;;
             --dry-run ) ;;
             --verbose ) verbose=true;;
             * ) echo "Unknown option: $1"; deployment_usage; return 1;;
