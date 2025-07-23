@@ -6,6 +6,7 @@ deployment_usage() {
     echo "  --local         Target the local environment"
     echo "  --environment   Specify the deployment environment"
     echo "  --staging       Deploy with staging configuration"
+    echo "  --test          Deploy for testing purposes"
     echo "  --approve       Automatically approve changes"
     echo "  --set-status    Set the deployment commit status of CI/CD pipeline"
     echo "  --force, -f     Force deployment even if status is already set"
@@ -44,6 +45,7 @@ parse_environment_args() {
     load_env
 
     local loc=false
+    local custom_domain=false
     local set_status=false
     local verbose=false
     while [[ "$*" != "" ]]; do
@@ -52,10 +54,11 @@ parse_environment_args() {
             --local ) loc=true;;
             --environment ) ENVIRONMENT="$2"; shift;;
             --staging ) ENVIRONMENT="staging";;
+            --test ) ENVIRONMENT="test";;
             --approve ) ;;
             --set-status ) set_status=true;;
             --force | -f ) ;;
-            --domain ) FOLIO_APP_DOMAIN="$2"; shift;;
+            --domain ) FOLIO_APP_DOMAIN="$2"; custom_domain=true; shift;;
             --dns-zone ) FOLIO_CF_DNS_ZONE="$2"; shift;;
             --ssh-port ) FOLIO_SSH_PORT="$2"; shift;;
             --email ) FOLIO_ACME_EMAIL="$2"; shift;;
@@ -134,6 +137,12 @@ parse_environment_args() {
             echo "Error: GitHub token required to set deployment commit status."
             deployment_usage
             return 1
+        fi
+
+        if [[ "$custom_domain" == "false" ]]; then
+            if [[ "$ENVIRONMENT" != "production" ]]; then
+                FOLIO_APP_DOMAIN="$ENVIRONMENT.$FOLIO_APP_DOMAIN"
+            fi
         fi
 
         if ! command -v terraform &> /dev/null; then

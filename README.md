@@ -129,8 +129,27 @@ staging environment.
 deploy --staging
 ```
 
+Specifying the `--staging` option will deploy the application with the `staging`
+environment configuration. If a domain is not specified as an argument, the
+application will be deployed to the `staging.` subdomain of the configured
+domain.
+
 When staging, a staging SSL certificate will be issued by *Let's Encrypt*,
 instead of a production certificate.
+
+#### Alternate Environments
+Any environment can be deployed by specifying the `--environment` option
+with the desired environment name. The `--test` option can be used as a
+shorthand for `--environment test`.
+```bash
+deploy --environment <environment_name>
+deploy --test
+```
+
+Unless a domain is specified as an argument, the application will be deployed to
+the `<environment>.` subdomain, unless the environment is `production`.
+Otherwise, the application will be deployed the same as a [staging](#staging)
+deployment.
 
 ### Local Deployment
 If the `--local` option is used, the script will attempt to run the application

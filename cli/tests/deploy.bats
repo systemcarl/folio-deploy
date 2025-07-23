@@ -613,10 +613,67 @@ teardown() {
         -var "environment=staging" \
         -var "app_version=1.2.3" \
         -var "namespace=app-account" \
-        -var "domain=example.com" \
+        -var "domain=staging.example.com" \
         -var "dns_zone=abc123" \
         -var "ssh_port=22" \
         -var "acme_email=example@example.com" \
+        -var "ssh_public_key_file=/path/to/public_key.pub" \
+        -var "cf_token=cf_token" \
+        -var "do_token=do_token"
+}
+
+@test "creates test Terraform plan" {
+    setup_remote_env
+    run deploy <<< "y" --test
+    assert_success
+    assert_mock_called_once terraform -chdir=infra plan \
+        -out=tfplan \
+        -var "environment=test" \
+        -var "app_version=1.2.3" \
+        -var "namespace=app-account" \
+        -var "domain=test.example.com" \
+        -var "dns_zone=abc123" \
+        -var "ssh_port=22" \
+        -var "acme_email=example@example.com" \
+        -var "ssh_key_id=1234" \
+        -var "ssh_public_key_file=/path/to/public_key.pub" \
+        -var "cf_token=cf_token" \
+        -var "do_token=do_token"
+}
+
+@test "creates environment Terraform plan" {
+    setup_remote_env
+    run deploy <<< "y" --environment "env"
+    assert_success
+    assert_mock_called_once terraform -chdir=infra plan \
+        -out=tfplan \
+        -var "environment=env" \
+        -var "app_version=1.2.3" \
+        -var "namespace=app-account" \
+        -var "domain=env.example.com" \
+        -var "dns_zone=abc123" \
+        -var "ssh_port=22" \
+        -var "acme_email=example@example.com" \
+        -var "ssh_key_id=1234" \
+        -var "ssh_public_key_file=/path/to/public_key.pub" \
+        -var "cf_token=cf_token" \
+        -var "do_token=do_token"
+}
+
+@test "creates Terraform plan with custom domain" {
+    setup_remote_env
+    run deploy <<< "y" --environment "test" --domain "example.test"
+    assert_success
+    assert_mock_called_once terraform -chdir=infra plan \
+        -out=tfplan \
+        -var "environment=test" \
+        -var "app_version=1.2.3" \
+        -var "namespace=app-account" \
+        -var "domain=example.test" \
+        -var "dns_zone=abc123" \
+        -var "ssh_port=22" \
+        -var "acme_email=example@example.com" \
+        -var "ssh_key_id=1234" \
         -var "ssh_public_key_file=/path/to/public_key.pub" \
         -var "cf_token=cf_token" \
         -var "do_token=do_token"
