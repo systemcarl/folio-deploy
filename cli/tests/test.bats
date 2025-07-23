@@ -18,6 +18,8 @@ setup() {
 
     mock docker
     mock terraform
+    mock deploy
+    mock destroy
     status() {
         log_mock_call status "$@";
         echo 'none';
@@ -125,6 +127,12 @@ teardown() {
     assert_mock_not_called docker pull bats/bats:latest
 }
 
+@test "does not pull BATS Docker image for deployment tests" {
+    run test --deploy
+    assert_success
+    assert_mock_not_called docker pull bats/bats:latest
+}
+
 @test "runs command line interface BATS tests" {
     run test
     assert_success
@@ -142,6 +150,8 @@ teardown() {
         bats/bats:latest \
         infra/tests/
     assert_mock_not_called terraform --chdir=infra test
+    assert_mock_not_called deploy
+    assert_mock_not_called destroy
 }
 
 @test "returns non-zero if command line interface BATS tests fail" {
@@ -195,6 +205,8 @@ teardown() {
         --name folio-tests-bats \
         bats/bats:latest \
         cli/tests/
+    assert_mock_not_called deploy
+    assert_mock_not_called destroy
 }
 
 @test "returns non-zero if infrastructure BATS tests fail" {
@@ -290,10 +302,78 @@ teardown() {
     assert_output --partial "Terraform tests failed."
 }
 
+@test "does not run deployment tests if unit tests fail" {
+    terraform() { log_mock_call terraform "$@"; return 1; }
+    run test
+    assert_failure
+    assert_mock_not_called deploy --test
+    assert_mock_not_called destroy --test
+}
+
+@test "runs deployment tests" {
+    run test
+    assert_success
+    assert_mock_called_once deploy --test --approve
+    assert_mock_called_once destroy --test --approve
+}
+
+@test "runs deployment tests only" {
+    run test --deploy
+    assert_success
+    assert_mock_not_called docker run -it --rm \
+        --name folio-tests-bats \
+        bats/bats:latest \
+        cli/tests/
+    assert_mock_not_called docker run -it --rm \
+        --name folio-tests-bats \
+        bats/bats:latest \
+        infra/tests/
+    assert_mock_not_called terraform -chdir=infra test
+}
+
+@test "deploys test application to domain" {
+    run test --domain "example.test"
+    assert_success
+    assert_mock_called_once deploy --test --approve --domain "example.test"
+    assert_mock_called_once destroy --test --approve --domain "example.test"
+}
+
+@test "returns non-zero if deployment fails" {
+    deploy() { log_mock_call deploy "$@"; return 1; }
+    run test
+    assert_failure
+    assert_output --partial "Failed to complete test deployment."
+}
+
+@test "returns non-zero if destroy fails" {
+    destroy() { log_mock_call destroy "$@"; return 1; }
+    run test
+    assert_failure
+    assert_output --partial "Failed to complete test deployment."
+}
+
+@test "sets commit status to 'failure' after deployment fails" {
+    deploy() { log_mock_call deploy "$@"; return 1; }
+    run test --set-status
+    assert_failure
+    assert_mock_called_once status set --self failure \
+        --description "Automated tests deployment failed."
+}
+
+@test "sets commit status to 'failure' after destroy fails" {
+    destroy() { log_mock_call destroy "$@"; return 1; }
+    run test --set-status
+    assert_failure
+    assert_mock_called_once status set --self failure \
+        --description "Automated tests deployment failed."
+}
+
 @test "runs BATS tests with non-interactive terminal" {
     run test --ci
     assert_success
     assert_mock_not_called docker run -it
+    assert_mock_called_once deploy --test --approve --ci
+    assert_mock_called_once destroy --test --approve --ci
 }
 
 @test "prints non-interactive terminal option when verbose" {

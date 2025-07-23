@@ -1,4 +1,6 @@
 source "$(dirname "${BASH_SOURCE[0]}")/utils/environment"
+source "$(dirname "${BASH_SOURCE[0]}")/deploy"
+source "$(dirname "${BASH_SOURCE[0]}")/destroy"
 source "$(dirname "${BASH_SOURCE[0]}")/status"
 
 test() {
@@ -10,7 +12,9 @@ test() {
         echo "  --cli               Run command tests"
         echo "  --infra             Run infrastructure tests"
         echo "  --terraform         Run Terraform tests"
+        echo "  --deploy            Run test deployment"
         echo "  --filter, -e        Specify regex to filter tests by name"
+        echo "  --domain            Specify the test domain for the application"
         echo "  --set-status        Set the commit status of CI/CD pipeline"
         echo "  --force -f          Force test even if a status is already set"
         echo "  --gh-token          Specify the GitHub API token."
@@ -19,6 +23,7 @@ test() {
         echo "  --verbose           Enable verbose output"
         echo "  --help, -h          Show this help message"
         echo "Environment Variables:"
+        echo "  FOLIO_APP_DOMAIN    Domain for deploying the test application."
         echo "  FOLIO_GH_TOKEN      GitHub API token."
     }
 
@@ -27,6 +32,7 @@ test() {
     local test_path=""
     local test_filter=""
     local flags=""
+    local domain=""
     local set_status=false
     local force=false
     local interactive=true
@@ -38,7 +44,9 @@ test() {
             --cli ) flags+="c";;
             --infra ) flags+="i";;
             --terraform ) flags+="t";;
+            --deploy ) flags+="d";;
             --filter | -e ) test_filter="$2"; shift;;
+            --domain ) domain="$2"; shift;;
             --set-status ) set_status=true;;
             --force | -f ) force=true;;
             --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
@@ -72,7 +80,7 @@ test() {
     if [[ "$dry_run" == "true" ]]; then return 0; fi
 
     if ( \
-        [[ -n "$test_path" || -n "$test_filter" ]] \
+        [[ -n "$test_path" || -n "$test_filter" || -n "$flags" ]] \
             && [[ "$set_status" == "true" ]] \
     ); then
         echo "Error: Cannot set status when running subset of tests."
@@ -80,9 +88,12 @@ test() {
         return 1
     fi
 
-    if [[ "$flags" == *t* ]]; then
-        if [[ -n "$test_path" ]] || [[ -n "$test_filter" ]]; then
+    if [[ -n "$test_path" ]] || [[ -n "$test_filter" ]]; then
+        if [[ "$flags" == *t* ]]; then
             echo "Error: Terraform tests cannot be filtered by path or name."
+            return 1
+        elif [[ "$flags" == *d* ]]; then
+            echo "Error: Deployment tests cannot be filtered by path or name."
             return 1
         fi
     fi
@@ -143,7 +154,7 @@ test() {
     local interact=""
     if [[ "$interactive" == "true" ]]; then interact="-it"; fi
 
-    if [[ "$flags" != "t" ]]; then
+    if [[ -z "$flags" ]] || [[ "$flags" == *c* ]] || [[ "$flags" == *i* ]]; then
         echo "Pulling BATS Docker image..."
         local out="$([[ "$verbose" == "true" ]] && echo "/dev/stdout" \
             || echo "/dev/null")"
@@ -231,8 +242,42 @@ test() {
         echo -e "\033[0;31m$failures test suite(s) failed.\033[0m"
         update_status "failure" "failed"
         return 1
-    else
-        echo "All tests passed successfully."
-        update_status "success" "completed successfully" || return 1
     fi
+
+    if [[ -z "$flags" ]] || [[ "$flags" == *d* ]]; then
+        if [[ -z "$test_filter" ]] && [[ -z "$test_path" ]]; then
+            local opts=""
+            if [[ -n "$domain" ]]; then opts="--domain $domain"; fi
+            if [[ "$interactive" == "false" ]]; then opts+=" --ci"; fi
+
+            local deployment_failed=false
+            deploy --test --approve $opts
+            if [[ $? -ne 0 ]]; then
+                deployment_failed=true
+                echo
+                echo -e "\033[0;31mTest deployment failed.\033[0m"
+            fi
+
+            local destruction_failed=false
+            destroy --test --approve $opts
+            if [[ $? -ne 0 ]]; then
+                destruction_failed=true
+                echo
+                echo -e "\033[0;31mTest destruction failed.\033[0m"
+            fi
+
+            echo
+            if ( \
+                [[ "$deployment_failed" == "true" ]] \
+                    || [[ "$destruction_failed" == "true" ]] \
+            ); then
+                echo -e "\033[0;31mFailed to complete test deployment.\033[0m"
+                update_status "failure" "deployment failed"
+                return 1
+            fi
+        fi
+    fi
+
+    echo "All tests passed successfully."
+    update_status "success" "completed successfully" || return 1
 }

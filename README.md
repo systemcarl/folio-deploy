@@ -197,7 +197,8 @@ test
 ```
 Script unit tests are run using a *BATS* *Docker* container that is
 automatically pulled and executed. Terraform tests are executed using the
-*Terraform* CLI.
+*Terraform* CLI. By default, an integration test is performed, deploying the
+application to a remote server using the `test` environment configuration.
 
 To target specific test files, you can pass an individual test file or directory
 as an argument to the `test` script. Tests can also be filtered by name using
@@ -210,11 +211,14 @@ test <file_or_directory> --filter <test_name>
 To isolate a specific test suite — either *cli* or *infrastructure* tests — you
 can use the `--cli` or `--infra` options, respectively. Infrastructure tests
 include both the *Terraform* and `cloud-init` script tests. *Terraform* tests
-can be run in isolation using the `--terraform` option.
+can be run in isolation using the `--terraform` option. A test deployment can
+be performed without running the full test suite using the `--deploy`
+option.
 ```bash
 test --cli
 test --infra
 test --terraform
+test --deploy
 ```
 
 ### Code Status
