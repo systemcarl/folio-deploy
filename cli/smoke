@@ -6,6 +6,7 @@ smoke() {
         echo "Options:"
         echo "  --domain      Specify the domain hosing the application to test"
         echo "  --insecure    Tests via HTTP instead of HTTPS"
+        echo "  --ci           Run in non-interactive mode"
         echo "  --help, -h    Show this help message"
         echo "Environment variables:"
         echo "  FOLIO_APP_DOMAIN    Domain hosting the application to test"
@@ -14,11 +15,13 @@ smoke() {
     load_env
 
     local insecure=false
+    local interactive=true
     while [[ "$*" != "" ]]; do
         case "$1" in
             --help | -h ) usage; return 0;;
             --domain ) FOLIO_APP_DOMAIN="$2"; shift;;
             --insecure ) insecure=true;;
+            --ci ) interactive=false;;
             * ) echo "Unknown option: $1"; usage; return 1;;
         esac
         shift
@@ -41,7 +44,9 @@ smoke() {
             echo
             break
         fi
-        printf "\rConnection failed, retrying... (%d)" "$i"
+        if [[ "$interactive" == "true" ]]; then
+            printf "\rConnection failed, retrying... (%d)" "$i"
+        fi
         sleep 1 || break
     done
     if [[ "$success" != "true" ]]; then

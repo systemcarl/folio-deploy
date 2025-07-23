@@ -9,6 +9,7 @@ deploy() {
     local approve
     local set_status
     local force
+    local ci
     local dry_run
     local verbose
 
@@ -20,6 +21,7 @@ deploy() {
     approve=$(parse_flag "--approve" "$@") || return 1
     set_status=$(parse_flag "--set-status" "$@") || return 1
     force=$(parse_flag "--force|-f" "$@") || return 1
+    ci=$(parse_flag "--ci" "$@") || return 1
     dry_run=$(parse_flag "--dry-run" "$@") || return 1
 
     local version=$(get_version folio)
@@ -131,7 +133,9 @@ deploy() {
         echo "Application is running at https://$FOLIO_APP_DOMAIN"
 
         echo
-        smoke --domain "$FOLIO_APP_DOMAIN"
+        local opts=""
+        if [[ "$ci" == "true" ]]; then opts="--ci"; fi
+        smoke --domain "$FOLIO_APP_DOMAIN" $opts
         if [[ $? -ne 0 ]]; then
             update_status "failure" "failed smoke test"
             return 1
@@ -176,5 +180,7 @@ deploy() {
     echo "Application is running on http://localhost:3000"
 
     echo
-    smoke --insecure --domain "localhost:3000" || return 1
+    local opts=""
+    if [[ "$ci" == "true" ]]; then opts="--ci"; fi
+    smoke --insecure --domain "localhost:3000" $opts || return 1
 }

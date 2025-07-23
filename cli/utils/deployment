@@ -20,6 +20,7 @@ deployment_usage() {
     echo "  --do-token      Specify the DigitalOcean API token"
     echo "  --gh-token      Specify the GitHub API token"
     echo "  --ghpr-token    Specify the GitHub Package Registry token"
+    echo "  --ci            Run in non-interactive mode"
     echo "  --dry-run       Perform a dry run without executing deployment"
     echo "  --verbose       Enable verbose output"
     echo "  --help, -h      Show this help message"
@@ -65,6 +66,7 @@ parse_environment_args() {
             --do-token ) FOLIO_DO_TOKEN="$2"; shift;;
             --gh-token ) FOLIO_GH_TOKEN="$2"; shift;;
             --ghpr-token ) FOLIO_GHPR_TOKEN="$2"; shift;;
+            --ci ) ;;
             --dry-run ) ;;
             --verbose ) verbose=true;;
             * ) echo "Unknown option: $1"; deployment_usage; return 1;;

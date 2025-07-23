@@ -51,6 +51,20 @@ teardown() {
     assert_mock_called_once curl -s "http://example.com/"
 }
 
+@test "prints current status if connection fails" {
+    curl() { log_mock_call curl $@; return 1; }
+    run smoke
+    assert_failure
+    assert_output --partial "Connection failed, retrying..."
+}
+
+@test "does not print current status if run in non-interactive mode" {
+    curl() { log_mock_call curl $@; return 1; }
+    run smoke --ci
+    assert_failure
+    refute_output --partial "Connection failed, retrying..."
+}
+
 @test "returns non-zero exit code if connection fails" {
     curl() { log_mock_call curl $@; return 1; }
     run smoke

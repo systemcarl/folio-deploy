@@ -228,6 +228,12 @@ teardown() {
     assert_mock_called_once smoke --insecure --domain "localhost:3000"
 }
 
+@test "smoke tests local deployment with non-interactive output" {
+    run deploy --local --ci
+    assert_success
+    assert_mock_called_once smoke --insecure --domain "localhost:3000" --ci
+}
+
 @test "return non-zero exit code if smoke test fails" {
     smoke() { log_mock_call smoke $@; return 1; }
     run deploy --local
@@ -689,6 +695,13 @@ teardown() {
     run deploy <<< "y"
     assert_success
     assert_mock_called_once smoke --domain example.com
+}
+
+@test "smoke tests remote deployment with non-interactive output" {
+    setup_remote_env
+    run deploy <<< "y" --ci
+    assert_success
+    assert_mock_called_once smoke --domain example.com --ci
 }
 
 @test "returns non-zero exit code if smoke test fails" {
